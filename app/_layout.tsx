@@ -1,10 +1,12 @@
-import { useFonts } from 'expo-font';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
+import { SQLiteProvider } from 'expo-sqlite';
+import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/components/useColorScheme';
+import { migrateDb } from '@/src/db/schema';
+import { theme } from '@/src/theme';
+import { SyncProvider } from '@/src/sync/SyncContext';
+import { UnitProvider } from '@/src/UnitContext';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -12,45 +14,38 @@ export {
 } from 'expo-router';
 
 export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
   anchor: '(tabs)',
 };
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync();
+const navTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: theme.bg,
+    card: theme.card,
+    border: theme.border,
+    primary: theme.accent,
+    text: theme.text,
+  },
+};
 
 export default function RootLayout() {
-  const [loaded, error] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
-
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
-  useEffect(() => {
-    if (error) throw error;
-  }, [error]);
-
-  useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [loaded]);
-
-  if (!loaded) {
-    return null;
-  }
-
-  return <RootLayoutNav />;
-}
-
-function RootLayoutNav() {
-  const colorScheme = useColorScheme();
-
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-      </Stack>
-    </ThemeProvider>
+    <SQLiteProvider databaseName="gymapp.db" onInit={migrateDb}>
+      <SyncProvider>
+      <UnitProvider>
+        <ThemeProvider value={navTheme}>
+          <StatusBar style="light" />
+          <Stack screenOptions={{ headerStyle: { backgroundColor: theme.bg }, headerTintColor: theme.text, headerShadowVisible: false, headerBackButtonDisplayMode: 'minimal' }}>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="exercise/[id]" options={{ title: 'Exercise' }} />
+            <Stack.Screen name="workout/[id]" options={{ title: 'Workout' }} />
+            <Stack.Screen name="routine/[id]" options={{ title: 'Edit plan' }} />
+            <Stack.Screen name="account" options={{ title: 'Cloud sync', presentation: 'modal' }} />
+          </Stack>
+        </ThemeProvider>
+      </UnitProvider>
+      </SyncProvider>
+    </SQLiteProvider>
   );
 }
