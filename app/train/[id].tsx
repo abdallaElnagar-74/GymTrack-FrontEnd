@@ -8,7 +8,6 @@ import { RestTimer } from '@/src/components/RestTimer';
 import { Arrow, Button, DetailState, Pill } from '@/src/components/ui';
 import {
   addExerciseVideo,
-  addSet,
   deleteExerciseVideo,
   getActiveWorkout,
   getExerciseHistory,
@@ -219,16 +218,6 @@ export default function TrainExercise() {
     track(setSetDone(api, set.id, false));
   };
 
-  const onAddSet = async () => {
-    const base = sets[sets.length - 1];
-    await leave();
-    await addSet(api, workout.id, id, base?.reps ?? 0, base?.weight_kg ?? 0, base?.kind === 'warmup' ? 'normal' : (base?.kind ?? 'normal'));
-    const g = await getWorkoutExercises(api, workout.id, { context: true });
-    setGroups(g);
-    const added = g.find((x) => x.exercise.id === id)?.sets.at(-1);
-    if (added) setCurrentId(added.id);
-  };
-
   const onAddVideo = async (source: VideoSource, url: string, title: string) => {
     await addExerciseVideo(api, id, source, url, title);
     setVideos(await getExerciseVideos(api, id));
@@ -319,10 +308,9 @@ export default function TrainExercise() {
             onNext={ci < sets.length - 1 ? () => setCurrentId(sets[ci + 1].id) : undefined}
           />
         ) : (
-          <Text style={styles.meta}>{t('No sets yet — add one below.')}</Text>
+          <Text style={styles.meta}>{t('No sets planned for this exercise. Add sets in the plan.')}</Text>
         )}
-
-        <Button title={t('Add set')} icon="+" variant="secondary" onPress={onAddSet} style={{ marginTop: 12 }} />
+        {/* Sets are added only in the plan editor, not during training. */}
 
         <RecentSessions sessions={recent} unit={unit} />
 
@@ -636,17 +624,26 @@ function Field({
       <Text style={styles.fieldLabel} numberOfLines={1}>
         {value ? label : ' '}
       </Text>
-      <TextInput
-        style={[styles.bigInput, !value && styles.bigInputEmpty, locked && styles.bigInputLocked]}
-        value={value}
-        onChangeText={(v) => onChangeText(cleanNumber(v, decimals))}
-        placeholder={label}
-        placeholderTextColor={theme.faint}
-        keyboardType={decimals ? 'decimal-pad' : 'number-pad'}
-        editable={!locked}
-        selectTextOnFocus
-        accessibilityLabel={label}
-      />
+      {/* The box's style never changes while typing and there's no select-all-on-focus:
+          on Android either one re-selects the text after the first digit, so typing "12"
+          ended up as "2". The empty-state label is an overlay instead of a placeholder. */}
+      <View>
+        <TextInput
+          style={[styles.bigInput, locked && styles.bigInputLocked]}
+          value={value}
+          onChangeText={(v) => onChangeText(cleanNumber(v, decimals))}
+          keyboardType={decimals ? 'decimal-pad' : 'number-pad'}
+          editable={!locked}
+          accessibilityLabel={label}
+        />
+        {!value && (
+          <View style={styles.inputHint}>
+            <Text style={styles.inputHintText} numberOfLines={1}>
+              {label}
+            </Text>
+          </View>
+        )}
+      </View>
     </View>
   );
 }
@@ -713,7 +710,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 8,
   },
-  bigInputEmpty: { fontSize: 17, fontWeight: '600' },
+  inputHint: {
+    pointerEvents: 'none',
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  inputHintText: { color: theme.faint, fontSize: 17, fontWeight: '600' },
   bigInputLocked: { borderColor: theme.border, color: theme.muted },
   unitSwitch: {
     flexDirection: 'row',

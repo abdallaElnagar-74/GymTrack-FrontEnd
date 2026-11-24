@@ -4,7 +4,7 @@ Technical memory for AI assistants and developers: how the mobile app and the ba
 run, tested and shipped, plus the traps already hit. Read this before changing code.
 Product rules and features are in [BUSINESS.md](BUSINESS.md).
 
-_Last updated: 2026-11-24 · app v1.2.1 (versionCode 18)._
+_Last updated: 2026-11-24 · app v1.2.2 (versionCode 19)._
 
 ---
 
@@ -167,6 +167,9 @@ cd android && NODE_ENV=production ./gradlew assembleRelease   # ~7-10 min
   use small module-level helpers (`msFromNow`, `msSince` in `(tabs)/index.tsx`).
 - Don't write refs during render (lint); update refs in effects.
 - Exercise name field is `multiline` + `submitBehavior="blurAndSubmit"` so long names wrap instead of being cut off.
+- **Never use `selectTextOnFocus` or a value-dependent style (e.g. smaller font when empty) on a TextInput**: on Android either
+  one re-selects the text after the first character, so typing "12" gave "2". For an empty-state label, overlay a
+  `Text` with `pointerEvents: 'none'` (see `Field` in `train/[id].tsx`) instead of styling the placeholder.
 - No letter-avatar tiles for exercises (product rule; letter tiles are only for people/users, which the app doesn't have yet).
 
 ---

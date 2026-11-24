@@ -4,7 +4,7 @@ Product memory for AI assistants and developers: what the app is for, what it do
 feature, and what was decided. Keep these rules when changing features. Technical details are in
 [TECHNOLOGY.md](TECHNOLOGY.md).
 
-_Last updated: 2026-11-24 · current release v1.2.1._
+_Last updated: 2026-11-24 · current release v1.2.2._
 
 ---
 
@@ -28,7 +28,7 @@ under your account, so it survives a lost phone and is the same on every device.
 
 ### Workout tab (home)
 - **Idle:** each plan shows its **next day** (rotation: the day after the last one trained) with a big *Start* button,
-  plus chips to start any other day; *Start empty workout*; progress tiles: workouts this week, week streak 🔥,
+  plus chips to start any other day; progress tiles: workouts this week, week streak 🔥,
   total workouts, weight lifted this week; date of the last workout.
 - **Active workout:** live timer, totals (exercises, sets done, volume), progress bar, and the **list of exercises**.
   - The list is for overview only — **no typing here**. Each exercise shows its sets as chips
@@ -70,7 +70,10 @@ under your account, so it survives a lost phone and is the same on every device.
   workout list marks sets with a note with 📝. Rest time is the same for every set type.
 - Under the set card: **your last 3 sessions** of this exercise (fewer if you've done it fewer times, hidden if never),
   newest first — date, top weight, and every set as weight (kg) and reps.
-- Also: + Add set, Previous / Next exercise, All exercises (the list), History & records.
+- Also: Previous / Next exercise, All exercises (the list), History & records.
+- **Exercises and sets come only from the plan.** During a workout you cannot add exercises or sets (no "Add exercise",
+  no "Add set", no "Start empty workout"); a workout starts only from a plan day, and a day with no exercises can't be
+  started ("Add exercises to this day first"). To change what you train, edit the plan.
 - Tapping an exercise in the workout list opens this screen.
 
 ### Plans
@@ -120,7 +123,7 @@ Top to bottom: **Language** (English / العربية), **Appearance** (Auto / D
 - **Week** starts Monday in the phone's time zone; **streak** = consecutive weeks with at least one workout.
 
 ## 5. UX principles (decided with the user)
-- Every tap gives feedback: spinners on buttons, "Saving workout…" overlays, "Adding <exercise>…" placeholders, no double taps.
+- Every tap gives feedback: spinners on buttons, "Saving workout…" overlays, no double taps.
 - Never show a misleading empty state while loading; show a retry screen if loading fails; pull to refresh everywhere.
 - Weight and reps must always be clearly labelled (units on values; no bare `10×60`).
 - Set things up before training; during training, as few taps as possible.
@@ -146,6 +149,7 @@ Top to bottom: **Language** (English / العربية), **Appearance** (Auto / D
 | 1.1.2 | 2026-11-24 | Arrows drawn as vector icons: point outward (left) in Arabic, right in English |
 | 1.2.0 | 2026-11-24 | Plan = number of sets + type + optional note per set (weight/reps only while training); tips + notes on warm-up/drop sets; optional YouTube link or video when adding an exercise |
 | 1.2.1 | 2026-11-24 | New Weight × Reps boxes (start empty, numbers only, KG/LB switch); finished sets locked with Edit; Arabic fixes for "last time", set chips, history tables and the exercise counter |
+| 1.2.2 | 2026-11-24 | Typing "12" in weight/reps no longer turns into "2" (Android); exercises and sets are added only in the plan (no Add set / Add exercise / empty workout during training) |
 
 APKs are built locally (`E:\GymApp\GymTrack-<version>.apk`) and installed by sideloading over the previous version.
 Not on Google Play yet.

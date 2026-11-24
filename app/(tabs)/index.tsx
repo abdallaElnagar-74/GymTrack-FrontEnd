@@ -4,26 +4,22 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useApi } from '@/src/api/SessionContext';
 
-import { ExercisePicker } from '@/src/components/ExercisePicker';
 import { RestTimer } from '@/src/components/RestTimer';
 import { rest as restTimer, useRest } from '@/src/hooks/useRest';
 import { Arrow, Button, LoadError, Loading, ScreenHeader, StatTile } from '@/src/components/ui';
 import { useScreenData } from '@/src/hooks/useScreenData';
 import { WorkoutTimer } from '@/src/components/WorkoutTimer';
 import {
-  addSet,
   deleteWorkout,
   finishWorkout,
   getActiveWorkout,
   getDashboardStats,
-  getLastSession,
   getRoutinesFull,
   getWorkoutExercises,
   removeExerciseFromWorkout,
-  startWorkout,
   startWorkoutFromDay,
   type DashboardStats,
-  type Exercise,
+  type DayWithExercises,
   type RoutineFull,
   type Workout,
   type WorkoutExercise,
@@ -65,9 +61,6 @@ export default function WorkoutScreen() {
   const [groups, setGroups] = useState<WorkoutExercise[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [plans, setPlans] = useState<RoutineFull[]>([]);
-  const [picker, setPicker] = useState(false);
-  // Exercises picked but not on the server yet (shown as placeholder cards).
-  const [adding, setAdding] = useState<Exercise[]>([]);
   const rest = useRest();
   // Blocks the screen with a spinner while a whole-workout action runs (start, finish, discard).
   const [busy, setBusy] = useState<string | null>(null);
@@ -110,32 +103,20 @@ export default function WorkoutScreen() {
     }
   };
 
-  const onStartEmpty = () => run(t('Starting workout…'), () => startWorkout(api));
-
-  // A plan day opens straight on its first exercise.
-  const onStartDay = (dayId: string) =>
-    run(t('Starting workout…'), async () => {
-      const workoutId = await startWorkoutFromDay(api, dayId);
+  // Workouts start only from a plan day (exercises and sets come from the plan);
+  // a plan day opens straight on its first exercise.
+  const onStartDay = (day: DayWithExercises) => {
+    if (day.exercises.length === 0) {
+      notify(t('No exercises'), t('Add exercises to this day first.'));
+      return;
+    }
+    return run(t('Starting workout…'), async () => {
+      const workoutId = await startWorkoutFromDay(api, day.id);
       const first = (await getWorkoutExercises(api, workoutId))[0];
       if (first) router.push({ pathname: '/train/[id]', params: { id: first.exercise.id } });
     });
-
-  const onPick = async (ex: Exercise) => {
-    if (!workout) return;
-    setPicker(false);
-    if (groups.some((g) => g.exercise.id === ex.id) || adding.some((a) => a.id === ex.id)) return;
-    setAdding((a) => [...a, ex]);
-    try {
-      const last = await getLastSession(api, ex.id, workout.id);
-      const first = last?.sets[0];
-      await addSet(api, workout.id, ex.id, first?.reps ?? 0, first?.weight_kg ?? 0, first?.kind ?? 'normal');
-      await refreshGroups();
-    } catch (e) {
-      reportError(e, t('Couldn’t add {name}', { name: ex.name }));
-    } finally {
-      setAdding((a) => a.filter((x) => x.id !== ex.id));
-    }
   };
+
 
   const onRemoveExercise = (g: WorkoutExercise) => {
     if (!workout) return;
@@ -248,7 +229,7 @@ export default function WorkoutScreen() {
                         title={t('Start {name}', { name: next.name })}
                         icon="▶"
                         size="lg"
-                        onPress={() => onStartDay(next.id)}
+                        onPress={() => onStartDay(next)}
                         style={{ marginTop: 16 }}
                       />
                     </>
@@ -267,7 +248,7 @@ export default function WorkoutScreen() {
                           accessibilityLabel={t('Start {name}', { name: d.name })}
                           disabled={!!busy}
                           style={({ pressed }) => [styles.dayChip, pressed && { opacity: 0.7 }]}
-                          onPress={() => onStartDay(d.id)}>
+                          onPress={() => onStartDay(d)}>
                           <Text style={styles.dayChipText}>▶ {d.name}</Text>
                         </Pressable>
                       ))}
@@ -291,8 +272,6 @@ export default function WorkoutScreen() {
               <Button title={t('Set up a plan')} icon="+" size="lg" onPress={() => router.push('/plans')} style={{ marginTop: 16 }} />
             </LinearGradient>
           )}
-
-          <Button title={t('Start empty workout')} variant="secondary" onPress={onStartEmpty} style={{ marginTop: 12 }} />
 
           <Text style={styles.section}>{t('Your progress')}</Text>
           <View style={styles.statsRow}>
@@ -362,12 +341,14 @@ export default function WorkoutScreen() {
         {groups.length > 0 && !nextUp && (
           <Text style={styles.allDone}>{t('All sets done 💪 Tap “Finish workout” below to save it.')}</Text>
         )}
-        {groups.length === 0 && adding.length === 0 && (
+        {groups.length === 0 && (
+          // Exercises are added only in the plan editor, never during a workout.
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>🏋️</Text>
-            <Text style={styles.emptyTitle}>{t('No exercises yet')}</Text>
-            <Text style={styles.emptySub}>{t('Add your first exercise to begin logging sets.')}</Text>
-            <Button title={t('Add exercise')} icon="+" onPress={() => setPicker(true)} style={{ marginTop: 10, minWidth: 200 }} />
+            <Text style={styles.emptyTitle}>{t('No exercises in this workout')}</Text>
+            <Text style={styles.emptySub}>
+              {t('Exercises are added in the plan. Discard this workout, add exercises to the day, then start it again.')}
+            </Text>
           </View>
         )}
         {groups.map((g, i) => (
@@ -380,16 +361,7 @@ export default function WorkoutScreen() {
             onRemove={() => onRemoveExercise(g)}
           />
         ))}
-        {adding.map((ex) => (
-          <View key={ex.id} style={styles.addingCard}>
-            <ActivityIndicator color={theme.accent} />
-            <Text style={styles.addingText}>{t('Adding {name}…', { name: ex.name })}</Text>
-          </View>
-        ))}
         {groups.length > 0 && <Text style={styles.hint}>{t('Tap an exercise to train it set by set.')}</Text>}
-        {groups.length > 0 && (
-          <Button title={t('Add exercise')} icon="+" variant="ghost" onPress={() => setPicker(true)} />
-        )}
         <Button
           title={t('Finish workout')}
           icon="✓"
@@ -401,7 +373,6 @@ export default function WorkoutScreen() {
         <Button title={t('Discard workout')} variant="danger" onPress={onDiscard} style={{ marginTop: 10 }} />
       </ScrollView>
       {rest && <RestTimer rest={rest} onAdjust={restTimer.adjust} onClose={restTimer.clear} />}
-      <ExercisePicker visible={picker} onClose={() => setPicker(false)} onPick={onPick} />
       {overlay}
     </View>
   );
@@ -590,19 +561,6 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 44 },
   emptyTitle: { color: theme.text, fontSize: 18, fontWeight: '800', marginTop: 10 },
   emptySub: { color: theme.muted, marginTop: 4, marginBottom: 8, textAlign: 'center' },
-  addingCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: theme.card,
-    borderRadius: theme.radius,
-    padding: 18,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: theme.border,
-    borderStyle: 'dashed',
-  },
-  addingText: { color: theme.muted, fontSize: 15, fontWeight: '700' },
   overlay: {
     position: 'absolute',
     top: 0,
