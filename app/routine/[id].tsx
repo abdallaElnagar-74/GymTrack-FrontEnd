@@ -28,10 +28,8 @@ import {
   type RoutineFull,
 } from '@/src/db/queries';
 import { alpha, theme } from '@/src/theme';
-import { useUnit } from '@/src/UnitContext';
 import { confirm, notify } from '@/src/utils/confirm';
 import { reportError } from '@/src/utils/feedback';
-import type { Unit } from '@/src/utils/format';
 import { isRTL, plural, t } from '@/src/i18n';
 
 export default function RoutineEditor() {
@@ -42,7 +40,6 @@ export default function RoutineEditor() {
   const [name, setName] = useState('');
   const [pickerDay, setPickerDay] = useState<string | null>(null);
   const [newDay, setNewDay] = useState('');
-  const { unit } = useUnit();
   // Set editors with changes not saved yet; saved before starting a day.
   const flushers = useRef(new Set<() => Promise<unknown>>());
   const registerFlush = useCallback((f: () => Promise<unknown>) => {
@@ -184,7 +181,6 @@ export default function RoutineEditor() {
               await removeDayExercise(api, deId);
               await load();
             }}
-            unit={unit}
             onSavePlan={savePlan}
             registerFlush={registerFlush}
             onMove={async (idx, dir) => {
@@ -224,7 +220,6 @@ function DayCard({
   onDelete,
   onAddExercise,
   onRemoveExercise,
-  unit,
   onSavePlan,
   registerFlush,
   onMove,
@@ -237,7 +232,6 @@ function DayCard({
   onDelete: () => void;
   onAddExercise: () => void;
   onRemoveExercise: (id: string) => void;
-  unit: Unit;
   onSavePlan: (id: string, sets: PlannedSet[]) => Promise<unknown>;
   registerFlush: (flushNow: () => Promise<unknown>) => () => void;
   onMove: (index: number, dir: -1 | 1) => void;
@@ -303,13 +297,12 @@ function DayCard({
         </View>
         <PlanSetsEditor
           initial={plannedSetsOf(e)}
-          unit={unit}
           onSave={(sets) => onSavePlan(e.id, sets)}
           registerFlush={registerFlush}
         />
         </View>
       ))}
-      {day.exercises.length > 0 && <Text style={styles.setsHint}>{t('Empty boxes use what you did last time.')}</Text>}
+      {day.exercises.length > 0 && <Text style={styles.setsHint}>{t('Weight and reps are entered in each set during the workout.')}</Text>}
 
       <View style={styles.dayActions}>
         <Button title={t('Add exercise')} icon="+" variant="secondary" onPress={onAddExercise} style={{ flex: 1 }} />

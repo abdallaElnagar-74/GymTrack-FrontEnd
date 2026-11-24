@@ -7,9 +7,12 @@ import { useScreenData } from '@/src/hooks/useScreenData';
 import { useApi } from '@/src/api/SessionContext';
 
 import { Arrow, Button, GroupDot, LoadError, Loading, ScreenHeader } from '@/src/components/ui';
-import { addExercise, getExercises, type Exercise } from '@/src/db/queries';
+import * as ImagePicker from 'expo-image-picker';
+import { addExercise, addExerciseVideo, getExercises, type Exercise } from '@/src/db/queries';
+import { canStoreVideoFiles, saveVideoFile } from '@/src/utils/videoFiles';
+import { parseYouTube } from '@/src/utils/youtube';
 import { MUSCLE_GROUPS } from '@/src/db/seed';
-import { groupColor, theme } from '@/src/theme';
+import { alpha, groupColor, theme } from '@/src/theme';
 import { plural, t } from '@/src/i18n';
 
 export default function ExercisesScreen() {
@@ -19,6 +22,16 @@ export default function ExercisesScreen() {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const [group, setGroup] = useState<string>('Chest');
+  // Optional video for the new exercise: a YouTube link and/or a video picked from the phone.
+  const [link, setLink] = useState('');
+  const [picked, setPicked] = useState<{ uri: string; name: string | null } | null>(null);
+  const linkOk = !link.trim() || !!parseYouTube(link);
+
+  const pickVideo = async () => {
+    await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['videos'], quality: 1 });
+    if (!r.canceled && r.assets?.[0]) setPicked({ uri: r.assets[0].uri, name: r.assets[0].fileName ?? null });
+  };
 
   const load = useCallback(() => getExercises(api).then(setItems), [api]);
   const { status, error, retry, refreshControl } = useScreenData(load);
@@ -36,9 +49,19 @@ export default function ExercisesScreen() {
 
   const onAdd = async () => {
     if (!name.trim()) return;
+    if (!linkOk) return notify(t('Not a YouTube link'), t('Paste a link like youtube.com/watch?v=… or youtu.be/…'));
     try {
-      await addExercise(api, name, group);
+      const id = await addExercise(api, name, group);
+      try {
+        if (link.trim()) await addExerciseVideo(api, id, 'youtube', link.trim());
+        if (picked) await addExerciseVideo(api, id, 'file', await saveVideoFile(picked.uri, picked.name));
+      } catch (e: any) {
+        // The exercise is saved either way; the video can be added again from its screen.
+        notify(t('Could not save video'), String(e?.message ?? e));
+      }
       setName('');
+      setLink('');
+      setPicked(null);
       setAdding(false);
       await load();
     } catch (e) {
@@ -100,6 +123,31 @@ export default function ExercisesScreen() {
                     );
                   })}
                 </View>
+                <Text style={styles.videoLabel}>{t('Video (optional)')}</Text>
+                <TextInput
+                  style={[styles.input, !linkOk && { borderColor: theme.danger }]}
+                  value={link}
+                  onChangeText={setLink}
+                  placeholder={t('YouTube link')}
+                  placeholderTextColor={theme.faint}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                />
+                {!linkOk && <Text style={styles.videoErr}>{t('That doesn’t look like a YouTube video link.')}</Text>}
+                {canStoreVideoFiles &&
+                  (picked ? (
+                    <View style={styles.pickedRow}>
+                      <Text style={styles.pickedText} numberOfLines={1}>
+                        🎞 {t('Video selected')}
+                      </Text>
+                      <Pressable onPress={() => setPicked(null)} hitSlop={10} accessibilityLabel={t('Remove')}>
+                        <Text style={styles.clear}>✕</Text>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <Button title={t('Upload video')} icon="🎞" variant="secondary" onPress={pickVideo} />
+                  ))}
                 <Button title={t('Save exercise')} onPress={onAdd} disabled={!name.trim()} />
               </View>
             )}
@@ -183,6 +231,18 @@ const styles = StyleSheet.create({
     borderColor: theme.border,
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  videoLabel: { color: theme.muted, fontSize: 13, fontWeight: '700' },
+  videoErr: { color: theme.danger, fontSize: 12, marginTop: -4 },
+  pickedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: alpha(theme.accent, 0.12),
+  },
+  pickedText: { flex: 1, color: theme.accent, fontWeight: '700' },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',

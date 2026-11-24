@@ -198,7 +198,7 @@ export default function ExerciseDetail() {
               </Text>
             </View>
             <View style={styles.histHead}>
-              <Text style={[styles.histHeadText, styles.histSet]}>{t('SET')}</Text>
+              <Text style={[styles.histHeadText, styles.histSetHead]}>{t('SET')}</Text>
               <Text style={[styles.histHeadText, styles.histVal]}>{t('WEIGHT ({unit})', { unit: unit.toUpperCase() })}</Text>
               <Text style={[styles.histHeadText, styles.histVal]}>{t('REPS')}</Text>
             </View>
@@ -259,8 +259,9 @@ const styles = StyleSheet.create({
   histHeadText: { color: theme.faint, fontSize: 11, fontWeight: '800', letterSpacing: isRTL ? 0 : 0.8 },
   histRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 6, borderRadius: 8 },
   histRowAlt: { backgroundColor: theme.cardAlt },
-  histSet: { width: 44 },
-  histVal: { flex: 1 },
+  histSet: { width: 44, alignItems: 'center' },
+  histSetHead: { width: 44, textAlign: 'center' },
+  histVal: { flex: 1, textAlign: 'center' },
   histBadge: { width: 26, height: 26, borderRadius: 8, backgroundColor: theme.input, alignItems: 'center', justifyContent: 'center' },
   histBadgeText: { color: theme.text, fontWeight: '800', fontSize: 12 },
   histNum: { color: theme.text, fontSize: 16, fontWeight: '800' },

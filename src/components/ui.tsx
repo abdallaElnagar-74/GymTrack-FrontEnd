@@ -213,14 +213,26 @@ export function LoadError({ message, onRetry }: { message: string; onRetry: () =
 }
 
 /** Placeholder for a detail screen: spinner while loading, a message if the item is gone. */
-export function DetailState({ missing, what }: { missing: boolean; what: string }) {
+export function DetailState({
+  missing,
+  what,
+  title,
+  sub,
+}: {
+  missing: boolean;
+  what: string;
+  /** Replaces "This <what> no longer exists" (already translated). */
+  title?: string;
+  /** Replaces "It may have been deleted on another device." (already translated). */
+  sub?: string;
+}) {
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
       {missing ? (
         <View style={styles.center}>
           <Text style={{ fontSize: 40 }}>🔍</Text>
-          <Text style={styles.centerTitle}>{t('This {what} no longer exists', { what: t(what) })}</Text>
-          <Text style={styles.centerSub}>{t('It may have been deleted on another device.')}</Text>
+          <Text style={styles.centerTitle}>{title ?? t('This {what} no longer exists', { what: t(what) })}</Text>
+          <Text style={styles.centerSub}>{sub ?? t('It may have been deleted on another device.')}</Text>
           <Button
             title={t('Go back')}
             variant="secondary"

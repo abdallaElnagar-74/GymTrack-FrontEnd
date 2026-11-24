@@ -452,8 +452,14 @@ function ExerciseRow({
           return (
             <View key={st.id} style={[styles.miniChip, st.done === 1 && styles.miniChipDone]}>
               <Text style={[styles.miniChipText, st.kind !== 'normal' && { color: info.color }]}>
-                {st.done === 1 ? '✓ ' : ''}
-                {labels[i]} · {toDisplay(st.weight_kg, unit)} {unit} × {st.reps}
+                {/* Numbers only for ticked sets: an undone set may hold last session's values
+                    (used by the training screen), which aren't what you lifted today.
+                    The LRM mark keeps "1 · 40 kg × 10" in order in Arabic. */}
+                {'‎' +
+                  (st.done === 1 ? '✓ ' : '') +
+                  labels[i] +
+                  (st.done === 1 ? ` · ${toDisplay(st.weight_kg, unit)} ${unit} × ${st.reps}` : '') +
+                  (st.note ? ' 📝' : '')}
               </Text>
             </View>
           );

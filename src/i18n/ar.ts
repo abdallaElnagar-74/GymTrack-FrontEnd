@@ -59,6 +59,11 @@ export const ar: Record<string, string> = {
   'Something went wrong': 'حدث خطأ',
   'Couldn’t load this': 'تعذّر التحميل',
   'It may have been deleted on another device.': 'ربما تم حذفه من جهاز آخر.',
+  'No workout in progress': 'لا يوجد تمرين جارٍ',
+  'This workout was finished or discarded. Finished workouts are in History and can’t be edited.':
+    'تم إنهاء هذا التمرين أو تجاهله. التمارين المنتهية موجودة في السجل ولا يمكن تعديلها.',
+  'Not in this workout': 'ليس في هذا التمرين',
+  'This exercise was removed from your current workout.': 'تمت إزالة هذا التمرين من تمرينك الحالي.',
   'This {what} no longer exists': 'هذا {what} لم يعد موجودًا',
   exercise: 'التمرين',
   plan: 'الخطة',
@@ -171,7 +176,10 @@ export const ar: Record<string, string> = {
   // Training screen
   'Set {n} of {total}': 'المجموعة {n} من {total}',
   'Exercise {n} of {total}': 'التمرين {n} من {total}',
-  'Last time: {w} {unit} × {reps} reps': 'آخر مرة: {w} {unit} × {reps} عدّات',
+  'Last time:': 'آخر مرة:',
+  'Weight ({unit})': 'الوزن ({unit})',
+  Reps: 'العدّات',
+  Save: 'حفظ',
   'First time for this set ✨': 'أول مرة لهذه المجموعة ✨',
   'WEIGHT ({unit})': 'الوزن ({unit})',
   REPS: 'العدّات',
@@ -349,4 +357,14 @@ export const ar: Record<string, string> = {
   'Restore backup?': 'استعادة النسخة الاحتياطية؟',
   'This replaces ALL current data with the backup file.': 'سيستبدل هذا كل البيانات الحالية بملف النسخة الاحتياطية.',
   Restore: 'استعادة',
+  // Set notes & plan sets
+  'Note (e.g. drop 20%)': 'ملاحظة (مثال: قلّل 20%)',
+  'Note (optional)': 'ملاحظة (اختياري)',
+  'Note for set {n}': 'ملاحظة للمجموعة {n}',
+  'Tap a set to change its type: working → warm-up (W) → drop (D)': 'اضغط على المجموعة لتغيير نوعها: أساسية ← إحماء (W) ← دروب (D)',
+  'Weight and reps are entered in each set during the workout.': 'الوزن والعدّات بتتكتب في كل مجموعة أثناء التمرين.',
+  'Warm-up: light weight to get ready. Not counted in records or volume.': 'إحماء: وزن خفيف للتجهيز. لا يُحسب في الأرقام القياسية أو الحجم.',
+  'Drop set: lower the weight and keep going right after the previous set.': 'دروب سِت: قلّل الوزن وكمّل مباشرة بعد المجموعة السابقة.',
+  'Video (optional)': 'فيديو (اختياري)',
+  'Video selected': 'تم اختيار فيديو',
 };

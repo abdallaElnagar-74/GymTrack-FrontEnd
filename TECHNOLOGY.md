@@ -4,7 +4,7 @@ Technical memory for AI assistants and developers: how the mobile app and the ba
 run, tested and shipped, plus the traps already hit. Read this before changing code.
 Product rules and features are in [BUSINESS.md](BUSINESS.md).
 
-_Last updated: 2026-11-24 · app v1.1.2 (versionCode 16)._
+_Last updated: 2026-11-24 · app v1.2.1 (versionCode 18)._
 
 ---
 
@@ -130,6 +130,17 @@ cd android && NODE_ENV=production ./gradlew assembleRelease   # ~7-10 min
 - Starting a plan day (Workout tab or plan editor) pushes `/train/<first exercise id>`; tapping an exercise card in the
   workout list opens `/train/<id>` too (exercise history is linked from there). The training screen uses the same
   debounced-edit / `inFlight` pattern as the workout list and flushes before navigating.
+- Weight / reps boxes pass every change through `cleanNumber(text, decimals)` (`src/utils/number.ts`): Arabic/Persian
+  digits → 0-9, `,` `٫` → `.`, everything else dropped. Use it for any new number input.
+- **Mixed Arabic + numbers + units in one `Text` gets reordered by the bidi algorithm** (e.g. "آخر مرة: 20 20 kg × عدّات",
+  header "6 / 2"). Lay such lines out as separate `Text`s in a row, or start a number-only string with `‎` (LRM).
+  Two-column number tables (weight | reps) must use `textAlign: 'center'`, else in Arabic the columns align to
+  opposite edges and run together ("kg 1040 عدّات").
+- `POST /workouts/from-day` pre-fills each set's reps/weight from the last session. The training screen ignores them
+  (boxes start empty; only used to spot bodyweight sets) and the workout list shows numbers only for ticked sets.
+- Web QA without the Chrome extension: start Chrome with `--headless=new --remote-debugging-port=9333` and drive it
+  over CDP (Node 22 has a global `WebSocket`). Prefs live in `localStorage` (`pref.lang`, `pref.mode`), the session
+  in `gym.session`. Web Text uses `dir=auto`, so Latin names align left in Arabic on web only.
 - New routes need the dev server to regenerate typed routes (`.expo/types/router.d.ts`) before `tsc` accepts them.
 - Errors: `reportError(e)` (skips connection/5xx/401, which the session already reports).
 - **Language & theme are fixed for the app's lifetime**: `src/theme.ts` and `src/i18n` read device prefs
@@ -194,9 +205,9 @@ ignored by the data API), `version`. Unique index `{user_id, id}`.
 | `exercise_videos` | `exercise_id`, `source: 'youtube'\|'file'`, `url`, `title`, `position` (file videos stay on the phone) |
 | `routines` (plans) | `name`, `created_at` |
 | `routine_days` | `routine_id`, `name`, `position` |
-| `routine_day_exercises` | `day_id`, `exercise_id`, `position`, `target_sets`, **`sets: [{ kind, reps, weight_kg }]`** (planned sets; 0 = use last time) |
+| `routine_day_exercises` | `day_id`, `exercise_id`, `position`, `target_sets`, **`sets: [{ kind, reps, weight_kg, note? }]`** (planned sets; the app saves reps/weight 0 — entered while training; empty note is dropped) |
 | `workouts` | `date` (start ms), `finished_at` (null = active), `title`, `notes`, `day_id` |
-| `workout_sets` | `workout_id`, `exercise_id`, `set_number`, `reps`, `weight_kg` (always kg), `kind: normal\|warmup\|drop`, `done: 0\|1`, `created_at` |
+| `workout_sets` | `workout_id`, `exercise_id`, `set_number`, `reps`, `weight_kg` (always kg), `kind: normal\|warmup\|drop`, `note` (from the plan, '' if none), `done: 0\|1`, `created_at` |
 
 Weights are stored in **kg**; the app converts for lb display. Warm-ups are excluded from volume and records.
 

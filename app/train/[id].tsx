@@ -31,6 +31,7 @@ import { useUnit } from '@/src/UnitContext';
 import { notify } from '@/src/utils/confirm';
 import { haptic, reportError } from '@/src/utils/feedback';
 import { formatShortDate, fromDisplay, toDisplay, type Unit } from '@/src/utils/format';
+import { cleanNumber, parseNumber } from '@/src/utils/number';
 import { kindInfo, kindOrdinals, setLabels } from '@/src/utils/setKind';
 import { deleteVideoFile } from '@/src/utils/videoFiles';
 import { isRTL, plural, t } from '@/src/i18n';
@@ -59,14 +60,14 @@ const flushEdits = (api: Api, pending: PendingEdits) =>
 export default function TrainExercise() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const api = useApi();
-  const { unit, restSeconds } = useUnit();
+  const { unit, setUnit, restSeconds } = useUnit();
   const rest = useRest();
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [groups, setGroups] = useState<WorkoutExercise[]>([]);
   const [videos, setVideos] = useState<ExerciseVideo[]>([]);
   // The last finished sessions of this exercise (newest first), at most 3.
   const [recent, setRecent] = useState<ExerciseSession[]>([]);
-  const [status, setStatus] = useState<'loading' | 'ready' | 'missing'>('loading');
+  const [status, setStatus] = useState<'loading' | 'ready' | 'missing' | 'none'>('loading');
   // The set shown in the big card (null = the first set not done yet).
   const [currentId, setCurrentId] = useState<string | null>(null);
   const pending = useRef<PendingEdits>(new Map());
@@ -81,7 +82,7 @@ export default function TrainExercise() {
       const [w, v, h] = await Promise.all([getActiveWorkout(api), getExerciseVideos(api, id), getExerciseHistory(api, id)]);
       setVideos(v);
       setRecent(h.slice(0, 3));
-      if (!w) return setStatus('missing');
+      if (!w) return setStatus('none');
       const g = await getWorkoutExercises(api, w.id, { context: true });
       setWorkout(w);
       setGroups(g);
@@ -102,11 +103,25 @@ export default function TrainExercise() {
   );
 
   if (status !== 'ready' || !workout) {
-    if (status === 'missing') {
+    if (status === 'missing' || status === 'none') {
       return (
         <View style={{ flex: 1, backgroundColor: theme.bg }}>
           <Stack.Screen options={{ title: t('Workout') }} />
-          <DetailState missing what="exercise in your current workout" />
+          {status === 'none' ? (
+            <DetailState
+              missing
+              what="workout"
+              title={t('No workout in progress')}
+              sub={t('This workout was finished or discarded. Finished workouts are in History and can’t be edited.')}
+            />
+          ) : (
+            <DetailState
+              missing
+              what="exercise"
+              title={t('Not in this workout')}
+              sub={t('This exercise was removed from your current workout.')}
+            />
+          )}
         </View>
       );
     }
@@ -167,7 +182,13 @@ export default function TrainExercise() {
       restTimer.start(restSeconds, {
         kind: 'set',
         title: exercise.name,
-        detail: `${t('Set {n} of {total}', { n: sets.indexOf(after) + 1, total: sets.length })} · ${kindInfo(after.kind).label}`,
+        detail: [
+          t('Set {n} of {total}', { n: sets.indexOf(after) + 1, total: sets.length }),
+          kindInfo(after.kind).label,
+          after.note,
+        ]
+          .filter(Boolean)
+          .join(' · '),
       });
       return;
     }
@@ -230,7 +251,8 @@ export default function TrainExercise() {
           title: exercise.name,
           headerRight: () => (
             <Text style={styles.headerCount}>
-              {index + 1} / {groups.length}
+              {/* The LRM mark keeps "2 / 6" in this order in Arabic (it showed as "6 / 2"). */}
+              {`‎${index + 1} / ${groups.length}`}
             </Text>
           ),
         }}
@@ -289,6 +311,7 @@ export default function TrainExercise() {
             unit={unit}
             doneLabel={doneLabel}
             onChange={(r, w) => onChangeSet(current, r, w)}
+            onUnit={(u) => setUnit(u).catch(reportError)}
             onKind={() => onKind(current)}
             onDone={() => onDone(current)}
             onUndo={() => onUndo(current)}
@@ -387,7 +410,7 @@ function RecentSessions({ sessions, unit }: { sessions: ExerciseSession[]; unit:
   );
 }
 
-/** The set being worked on: type, last time, big weight / reps boxes with − / +, Done. */
+/** The set being worked on: type, last time, weight × reps boxes, Done (or Edit for a finished set). */
 function SetCard({
   set,
   label,
@@ -397,6 +420,7 @@ function SetCard({
   unit,
   doneLabel,
   onChange,
+  onUnit,
   onKind,
   onDone,
   onUndo,
@@ -411,38 +435,45 @@ function SetCard({
   unit: Unit;
   doneLabel: string;
   onChange: (reps: number, weightKg: number) => void;
+  onUnit: (u: Unit) => void;
   onKind: () => void;
   onDone: () => void;
   onUndo: () => void;
   onPrev?: () => void;
   onNext?: () => void;
 }) {
-  // Today's weight and reps start at 0 (no hints), so a set is never saved with numbers you
-  // didn't actually enter. A finished set shows what was saved. The planned weight is kept only
-  // to tell a bodyweight set (no planned weight, 0 is fine) from a forgotten weight.
+  // Today's weight and reps start empty (the box shows its label), so a set is never saved with
+  // numbers you didn't actually enter. A finished set shows what was saved and stays locked until
+  // you tap Edit. The planned weight is kept only to tell a bodyweight set (no planned weight,
+  // empty is fine) from a forgotten weight.
   const done = set.done === 1;
+  const [editing, setEditing] = useState(false);
+  const locked = done && !editing;
   const [plannedKg] = useState(() => (set.weight_kg > 0 ? set.weight_kg : (prev?.weight_kg ?? 0)));
-  const [weight, setWeight] = useState(done ? String(toDisplay(set.weight_kg, unit)) : '0');
-  const [reps, setReps] = useState(done ? String(set.reps) : '0');
+  const [weight, setWeight] = useState(done ? String(toDisplay(set.weight_kg, unit)) : '');
+  const [reps, setReps] = useState(done ? String(set.reps) : '');
   const info = kindInfo(set.kind);
-  const step = unit === 'kg' ? 2.5 : 5;
 
-  const commit = (w: string, r: string) => {
-    const wN = Math.max(0, parseFloat(w.replace(',', '.')) || 0);
-    const rN = Math.max(0, parseInt(r, 10) || 0);
-    onChange(rN, fromDisplay(wN, unit));
+  const commit = (w: string, r: string) => onChange(Math.round(parseNumber(r)), fromDisplay(parseNumber(w), unit));
+
+  // Switching kg / lb converts the number already in the box.
+  const switchUnit = (u: Unit) => {
+    if (u === unit) return;
+    if (weight) setWeight(String(toDisplay(fromDisplay(parseNumber(weight), unit), u)));
+    onUnit(u);
   };
-  const bumpWeight = (d: number) => {
-    const v = Math.max(0, Math.round(((parseFloat(weight.replace(',', '.')) || 0) + d) * 10) / 10);
-    const t = String(v);
-    setWeight(t);
-    commit(t, reps);
-  };
-  const bumpReps = (d: number) => {
-    const v = Math.max(0, (parseInt(reps, 10) || 0) + d);
-    const t = String(v);
-    setReps(t);
-    commit(weight, t);
+
+  // Weight may stay empty only for bodyweight sets (no planned weight); reps are always needed.
+  const valid = () => {
+    if (!(parseNumber(weight) > 0) && plannedKg > 0) {
+      notify(t('Enter the weight'), t('Type the weight you used in this set, then tap Done.'));
+      return false;
+    }
+    if (!(parseNumber(reps) > 0)) {
+      notify(t('Enter your reps'), t('Type how many reps you did in this set, then tap Done.'));
+      return false;
+    }
+    return true;
   };
 
   return (
@@ -457,6 +488,7 @@ function SetCard({
           </Text>
           <Pressable
             onPress={onKind}
+            disabled={locked}
             accessibilityRole="button"
             accessibilityLabel={`${info.label}. ${t('Tap to change set type')}`}
             style={[styles.kind, { backgroundColor: info.color + '26', borderColor: info.color + '66' }]}>
@@ -470,43 +502,105 @@ function SetCard({
         </Pressable>
       </View>
 
-      <Text style={styles.lastTime}>
-        {prev
-          ? t('Last time: {w} {unit} × {reps} reps', { w: toDisplay(prev.weight_kg, unit), unit, reps: prev.reps })
-          : t('First time for this set ✨')}
-      </Text>
+      {set.kind !== 'normal' || set.note ? (
+        <View style={[styles.tip, { borderColor: alpha(info.color, 0.45), backgroundColor: alpha(info.color, 0.1) }]}>
+          {set.kind === 'warmup' ? (
+            <Text style={[styles.tipText, { color: info.color }]}>
+              {t('Warm-up: light weight to get ready. Not counted in records or volume.')}
+            </Text>
+          ) : set.kind === 'drop' ? (
+            <Text style={[styles.tipText, { color: info.color }]}>
+              {t('Drop set: lower the weight and keep going right after the previous set.')}
+            </Text>
+          ) : null}
+          {set.note ? <Text style={styles.tipNote}>📝 {set.note}</Text> : null}
+        </View>
+      ) : null}
+
+      {/* Each part is its own Text so Arabic never jumbles the numbers and units. */}
+      {prev ? (
+        <View style={styles.lastRow}>
+          <Text style={styles.lastTime}>{t('Last time:')}</Text>
+          <Text style={styles.lastVal}>
+            {toDisplay(prev.weight_kg, unit)} {unit}
+          </Text>
+          <Text style={styles.lastTime}>×</Text>
+          <Text style={styles.lastVal}>
+            {prev.reps} {prev.reps === 1 ? t('rep') : t('reps')}
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.lastRow}>
+          <Text style={styles.lastTime}>{t('First time for this set ✨')}</Text>
+        </View>
+      )}
 
       <View style={styles.fields}>
-        <Field
-          label={t('WEIGHT ({unit})', { unit: unit.toUpperCase() })}
-          value={weight}
-          placeholder=""
-          keyboardType="decimal-pad"
-          onChangeText={(t) => {
-            setWeight(t);
-            commit(t, reps);
-          }}
-          onMinus={() => bumpWeight(-step)}
-          onPlus={() => bumpWeight(step)}
-        />
-        <Field
-          label={t('REPS')}
-          value={reps}
-          placeholder=""
-          keyboardType="number-pad"
-          onChangeText={(t) => {
-            setReps(t);
-            commit(weight, t);
-          }}
-          onMinus={() => bumpReps(-1)}
-          onPlus={() => bumpReps(1)}
-        />
+        <View style={{ flex: 1 }}>
+          <Field
+            label={t('Weight ({unit})', { unit: unit.toUpperCase() })}
+            value={weight}
+            decimals
+            locked={locked}
+            onChangeText={(v) => {
+              setWeight(v);
+              commit(v, reps);
+            }}
+          />
+          <View style={styles.unitSwitch}>
+            {(['kg', 'lb'] as const).map((u) => (
+              <Pressable
+                key={u}
+                onPress={() => switchUnit(u)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: u === unit }}
+                style={[styles.unitBtn, u === unit && styles.unitBtnOn]}>
+                <Text style={[styles.unitText, u === unit && styles.unitTextOn]}>{u.toUpperCase()}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+        <Text style={styles.times}>×</Text>
+        <View style={{ flex: 1 }}>
+          <Field
+            label={t('Reps')}
+            value={reps}
+            decimals={false}
+            locked={locked}
+            onChangeText={(v) => {
+              setReps(v);
+              commit(weight, v);
+            }}
+          />
+        </View>
       </View>
 
-      {done ? (
+      {locked ? (
+        // A finished set is read-only until Edit is tapped.
         <View style={styles.doneRow}>
           <Text style={styles.doneText}>✓ {t('Done')}</Text>
-          <Button title={t('Undo')} variant="secondary" onPress={onUndo} style={{ minWidth: 110 }} />
+          <Button title={t('Edit')} icon="✎" variant="secondary" onPress={() => setEditing(true)} style={{ minWidth: 120 }} />
+        </View>
+      ) : done ? (
+        <View style={styles.doneRow}>
+          <Button
+            title={t('Undo')}
+            variant="secondary"
+            onPress={() => {
+              setEditing(false);
+              onUndo();
+            }}
+            style={{ flex: 1 }}
+          />
+          <Button
+            title={t('Save')}
+            icon="✓"
+            onPress={() => {
+              Keyboard.dismiss();
+              if (valid()) setEditing(false);
+            }}
+            style={{ flex: 2 }}
+          />
         </View>
       ) : (
         <Button
@@ -514,16 +608,7 @@ function SetCard({
           icon="✓"
           size="lg"
           onPress={() => {
-            // Weight may stay 0 only for bodyweight sets (no planned weight).
-            if (!(parseFloat(weight.replace(',', '.')) > 0) && plannedKg > 0) {
-              notify(t('Enter the weight'), t('Type the weight you used in this set, then tap Done.'));
-              return;
-            }
-            if (!(parseInt(reps, 10) > 0)) {
-              notify(t('Enter your reps'), t('Type how many reps you did in this set, then tap Done.'));
-              return;
-            }
-            onDone();
+            if (valid()) onDone();
           }}
           style={{ marginTop: 16 }}
         />
@@ -532,44 +617,36 @@ function SetCard({
   );
 }
 
+/** An outlined number box: its label sits inside while empty and moves above it once filled. */
 function Field({
   label,
   value,
-  placeholder,
-  keyboardType,
+  decimals,
+  locked,
   onChangeText,
-  onMinus,
-  onPlus,
 }: {
   label: string;
   value: string;
-  placeholder: string;
-  keyboardType: 'decimal-pad' | 'number-pad';
+  decimals: boolean;
+  locked: boolean;
   onChangeText: (t: string) => void;
-  onMinus: () => void;
-  onPlus: () => void;
 }) {
   return (
-    <View style={{ flex: 1 }}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <View style={styles.fieldRow}>
-        <Pressable onPress={onMinus} style={styles.step} accessibilityRole="button" accessibilityLabel={`− ${label}`}>
-          <Text style={styles.stepText}>−</Text>
-        </Pressable>
-        <TextInput
-          style={styles.bigInput}
-          value={value}
-          onChangeText={onChangeText}
-          placeholder={placeholder}
-          placeholderTextColor={theme.faint}
-          keyboardType={keyboardType}
-          selectTextOnFocus
-          accessibilityLabel={label}
-        />
-        <Pressable onPress={onPlus} style={styles.step} accessibilityRole="button" accessibilityLabel={`+ ${label}`}>
-          <Text style={styles.stepText}>+</Text>
-        </Pressable>
-      </View>
+    <View>
+      <Text style={styles.fieldLabel} numberOfLines={1}>
+        {value ? label : ' '}
+      </Text>
+      <TextInput
+        style={[styles.bigInput, !value && styles.bigInputEmpty, locked && styles.bigInputLocked]}
+        value={value}
+        onChangeText={(v) => onChangeText(cleanNumber(v, decimals))}
+        placeholder={label}
+        placeholderTextColor={theme.faint}
+        keyboardType={decimals ? 'decimal-pad' : 'number-pad'}
+        editable={!locked}
+        selectTextOnFocus
+        accessibilityLabel={label}
+      />
     </View>
   );
 }
@@ -608,33 +685,49 @@ const styles = StyleSheet.create({
   setTitle: { color: theme.text, fontSize: 20, fontWeight: '800' },
   kind: { marginTop: 6, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1 },
   kindText: { fontWeight: '800', fontSize: 13 },
-  lastTime: { color: theme.muted, textAlign: 'center', marginTop: 12, fontSize: 14 },
-  fields: { flexDirection: 'row', gap: 12, marginTop: 14 },
-  fieldLabel: { color: theme.faint, fontSize: 11, fontWeight: '800', letterSpacing: isRTL ? 0 : 0.8, textAlign: 'center', marginBottom: 6 },
-  fieldRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  step: {
-    width: 38,
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: theme.cardAlt,
-    alignItems: 'center',
+  lastRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'center',
+    alignItems: 'baseline',
+    gap: 6,
+    marginTop: 12,
   },
-  stepText: { color: theme.accent, fontSize: 24, fontWeight: '800' },
+  lastTime: { color: theme.muted, textAlign: 'center', fontSize: 14 },
+  lastVal: { color: theme.text, fontSize: 15, fontWeight: '800' },
+  tip: { marginTop: 12, borderWidth: 1, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, gap: 4 },
+  tipText: { fontSize: 13, fontWeight: '700', textAlign: 'center', lineHeight: 19 },
+  tipNote: { color: theme.text, fontSize: 15, fontWeight: '700', textAlign: 'center' },
+  fields: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 10 },
+  fieldLabel: { color: theme.muted, fontSize: 12, fontWeight: '700', textAlign: 'center', marginBottom: 4 },
+  times: { color: theme.muted, fontSize: 20, fontWeight: '700', marginTop: 36 },
   bigInput: {
-    flex: 1,
-    minWidth: 0,
-    height: 56,
+    height: 60,
     backgroundColor: theme.input,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: theme.border,
+    borderColor: theme.muted,
     color: theme.text,
     fontSize: 26,
     fontWeight: '800',
     textAlign: 'center',
+    paddingHorizontal: 8,
   },
-  doneRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 },
+  bigInputEmpty: { fontSize: 17, fontWeight: '600' },
+  bigInputLocked: { borderColor: theme.border, color: theme.muted },
+  unitSwitch: {
+    flexDirection: 'row',
+    marginTop: 8,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: theme.border,
+    overflow: 'hidden',
+  },
+  unitBtn: { flex: 1, height: 38, alignItems: 'center', justifyContent: 'center' },
+  unitBtnOn: { backgroundColor: alpha(theme.accent, 0.16) },
+  unitText: { color: theme.muted, fontWeight: '800', fontSize: 14 },
+  unitTextOn: { color: theme.accent },
+  doneRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 16 },
   doneText: { color: theme.success, fontSize: 18, fontWeight: '800' },
   sectionTitle: {
     color: theme.muted,
@@ -665,7 +758,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   recentBadgeText: { color: theme.text, fontWeight: '800', fontSize: 12 },
-  recentVal: { flex: 1, color: theme.text, fontSize: 16, fontWeight: '800' },
+  recentVal: { flex: 1, color: theme.text, fontSize: 16, fontWeight: '800', textAlign: 'center' },
   recentUnit: { color: theme.muted, fontSize: 12, fontWeight: '600' },
   navRow: { flexDirection: 'row', gap: 10, marginTop: 18 },
   linkRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 18, paddingHorizontal: 4 },

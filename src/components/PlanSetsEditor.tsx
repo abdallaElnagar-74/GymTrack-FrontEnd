@@ -4,28 +4,18 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { PlannedSet, SetKind } from '../db/queries';
 import { isRTL, t } from '../i18n';
 import { alpha, theme } from '../theme';
-import { fromDisplay, toDisplay, type Unit } from '../utils/format';
 import { kindInfo, setLabels } from '../utils/setKind';
 
 const MAX_SETS = 20;
 const NEXT_KIND: Record<SetKind, SetKind> = { normal: 'warmup', warmup: 'drop', drop: 'normal' };
 
-/** What's being typed (kept as text so "62." or an empty box stay as typed). */
-type Row = { kind: SetKind; weight: string; reps: string };
+/** One planned set while editing: its type and an optional note (weight and reps are entered while training). */
+type Row = { kind: SetKind; note: string };
 
-const toRows = (sets: PlannedSet[], unit: Unit): Row[] =>
-  sets.map((s) => ({
-    kind: s.kind ?? 'normal',
-    weight: s.weight_kg > 0 ? String(toDisplay(s.weight_kg, unit)) : '',
-    reps: s.reps > 0 ? String(s.reps) : '',
-  }));
+const toRows = (sets: PlannedSet[]): Row[] => sets.map((s) => ({ kind: s.kind ?? 'normal', note: s.note ?? '' }));
 
-const toSets = (rows: Row[], unit: Unit): PlannedSet[] =>
-  rows.map((r) => ({
-    kind: r.kind,
-    reps: Math.max(0, parseInt(r.reps, 10) || 0),
-    weight_kg: Math.max(0, fromDisplay(parseFloat(r.weight.replace(',', '.')) || 0, unit)),
-  }));
+const toSets = (rows: Row[]): PlannedSet[] =>
+  rows.map((r) => ({ kind: r.kind, reps: 0, weight_kg: 0, ...(r.note.trim() ? { note: r.note.trim() } : {}) }));
 
 /** A save waiting for the typing to stop. */
 type Pending = { timer: ReturnType<typeof setTimeout> | null; run: (() => Promise<unknown>) | null };
@@ -39,22 +29,21 @@ function flush(p: Pending) {
 }
 
 /**
- * The planned sets of one exercise in a plan day: type, weight and reps for every set.
+ * The planned sets of one exercise in a plan day: how many sets, the type of each (working /
+ * warm-up / drop) and an optional note. Weight and reps are entered in the training screen.
  * Saves on its own shortly after a change; `registerFlush` lets the screen save right away
  * (e.g. before starting the day).
  */
 export function PlanSetsEditor({
   initial,
-  unit,
   onSave,
   registerFlush,
 }: {
   initial: PlannedSet[];
-  unit: Unit;
   onSave: (sets: PlannedSet[]) => Promise<unknown>;
   registerFlush: (flushNow: () => Promise<unknown>) => () => void;
 }) {
-  const [rows, setRows] = useState(() => toRows(initial, unit));
+  const [rows, setRows] = useState(() => toRows(initial));
   const pending = useRef<Pending>({ timer: null, run: null });
   const labels = setLabels(rows);
 
@@ -72,7 +61,7 @@ export function PlanSetsEditor({
     setRows(next);
     const p = pending.current;
     if (p.timer) clearTimeout(p.timer);
-    p.run = () => onSave(toSets(next, unit));
+    p.run = () => onSave(toSets(next));
     p.timer = setTimeout(() => flush(p), 700);
   };
 
@@ -81,18 +70,12 @@ export function PlanSetsEditor({
   const add = () => {
     if (rows.length >= MAX_SETS) return;
     const last = rows[rows.length - 1];
-    // A new set copies the last one (a working set if the last was a warm-up).
-    update([...rows, last ? { ...last, kind: last.kind === 'warmup' ? 'normal' : last.kind } : { kind: 'normal', weight: '', reps: '' }]);
+    // A new set has the same type as the last one (a working set after a warm-up), without its note.
+    update([...rows, { kind: last && last.kind !== 'warmup' ? last.kind : 'normal', note: '' }]);
   };
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.head}>
-        <Text style={[styles.col, styles.setCol]}>{t('SET')}</Text>
-        <Text style={[styles.col, styles.flex]}>{unit.toUpperCase()}</Text>
-        <Text style={[styles.col, styles.flex]}>{t('REPS')}</Text>
-        <View style={styles.delCol} />
-      </View>
       {rows.map((r, i) => {
         const info = kindInfo(r.kind);
         const special = r.kind !== 'normal';
@@ -103,32 +86,20 @@ export function PlanSetsEditor({
               hitSlop={4}
               accessibilityRole="button"
               accessibilityLabel={`${info.label} ${labels[i]}. ${t('Tap to change set type')}`}
-              style={[
-                styles.badge,
-                styles.setCol,
-                special && { backgroundColor: info.color + '26', borderColor: info.color + '66', borderWidth: 1 },
-              ]}>
-              <Text style={[styles.badgeText, special && { color: info.color }]}>{labels[i]}</Text>
+              style={[styles.kind, special && { backgroundColor: alpha(info.color, 0.15), borderColor: alpha(info.color, 0.5) }]}>
+              <Text style={[styles.kindNum, special && { color: info.color }]}>{labels[i]}</Text>
+              <Text style={[styles.kindLabel, special && { color: info.color }]} numberOfLines={1}>
+                {info.label}
+              </Text>
             </Pressable>
             <TextInput
-              style={[styles.input, styles.flex]}
-              value={r.weight}
-              onChangeText={(t) => change(i, { weight: t })}
-              placeholder={t('last')}
+              style={styles.note}
+              value={r.note}
+              onChangeText={(v) => change(i, { note: v })}
+              placeholder={special ? t('Note (e.g. drop 20%)') : t('Note (optional)')}
               placeholderTextColor={theme.faint}
-              keyboardType="decimal-pad"
-              selectTextOnFocus
-              accessibilityLabel={t('Set {n} weight in {unit}', { n: labels[i], unit })}
-            />
-            <TextInput
-              style={[styles.input, styles.flex]}
-              value={r.reps}
-              onChangeText={(t) => change(i, { reps: t })}
-              placeholder={t('last')}
-              placeholderTextColor={theme.faint}
-              keyboardType="number-pad"
-              selectTextOnFocus
-              accessibilityLabel={t('Set {n} reps', { n: labels[i] })}
+              maxLength={120}
+              accessibilityLabel={t('Note for set {n}', { n: labels[i] })}
             />
             <Pressable
               onPress={() => remove(i)}
@@ -136,7 +107,7 @@ export function PlanSetsEditor({
               hitSlop={6}
               accessibilityRole="button"
               accessibilityLabel={t('Remove set {n}', { n: labels[i] })}
-              style={[styles.delCol, styles.del, rows.length <= 1 && { opacity: 0.25 }]}>
+              style={[styles.del, rows.length <= 1 && { opacity: 0.25 }]}>
               <Text style={styles.delText}>✕</Text>
             </Pressable>
           </View>
@@ -150,34 +121,43 @@ export function PlanSetsEditor({
           style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.7 }]}>
           <Text style={styles.addText}>{t('+ Add set')}</Text>
         </Pressable>
-        <Text style={styles.hint}>{t('Tap the set number: working → warm-up (W) → drop (D)')}</Text>
+        <Text style={styles.hint}>{t('Tap a set to change its type: working → warm-up (W) → drop (D)')}</Text>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { marginTop: 6, marginLeft: 26, gap: 4 },
-  head: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  col: { color: theme.faint, fontSize: 10, fontWeight: '800', letterSpacing: isRTL ? 0 : 0.8, textAlign: 'center' },
-  setCol: { width: 34 },
-  flex: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
-  delCol: { width: 30 },
+  wrap: { marginTop: 6, marginLeft: 26, gap: 6 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  badge: { height: 34, borderRadius: 9, backgroundColor: theme.cardAlt, alignItems: 'center', justifyContent: 'center' },
-  badgeText: { color: theme.text, fontWeight: '800' },
-  input: {
+  kind: {
+    width: 118,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: theme.cardAlt,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+  },
+  kindNum: { color: theme.text, fontWeight: '900', fontSize: 14, minWidth: 14, textAlign: 'center' },
+  kindLabel: { flex: 1, color: theme.muted, fontWeight: '700', fontSize: 12 },
+  note: {
+    flex: 1,
+    minWidth: 0,
     height: 38,
     backgroundColor: theme.input,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: theme.border,
     color: theme.text,
-    fontSize: 16,
-    fontWeight: '700',
-    textAlign: 'center',
+    fontSize: 14,
+    paddingHorizontal: 10,
+    textAlign: isRTL ? 'right' : 'left',
   },
-  del: { height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  del: { width: 30, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   delText: { color: theme.faint, fontWeight: '800' },
   footer: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 },
   addBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 9, backgroundColor: alpha(theme.accent, 0.12) },

@@ -96,11 +96,16 @@ export default function WorkoutDetail() {
                 <View style={[styles.setNum, special && { backgroundColor: k.color + '26' }]}>
                   <Text style={[styles.setNumText, special && { color: k.color }]}>{setLabels(arr)[i]}</Text>
                 </View>
-                <Text style={styles.setText}>
-                  <Text style={styles.setStrong}>{toDisplay(s.weight_kg, unit)}</Text> {unit}
-                  <Text style={styles.times}>  ×  </Text>
-                  <Text style={styles.setStrong}>{s.reps}</Text> {t('reps')}
-                </Text>
+                {/* Separate Texts so Arabic keeps "40 kg × 10 reps" in order. */}
+                <View style={styles.setVals}>
+                  <Text style={styles.setText}>
+                    <Text style={styles.setStrong}>{toDisplay(s.weight_kg, unit)}</Text> {unit}
+                  </Text>
+                  <Text style={styles.times}>×</Text>
+                  <Text style={styles.setText}>
+                    <Text style={styles.setStrong}>{s.reps}</Text> {s.reps === 1 ? t('rep') : t('reps')}
+                  </Text>
+                </View>
                 {special && <Text style={[styles.kindTag, { color: k.color }]}>{k.label}</Text>}
               </View>
               );
@@ -139,6 +144,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   setNumText: { color: theme.muted, fontWeight: '800', fontSize: 12 },
+  setVals: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
   setText: { color: theme.muted, fontSize: 15 },
   setStrong: { color: theme.text, fontWeight: '800', fontSize: 16 },
   kindTag: { marginLeft: 'auto', fontSize: 12, fontWeight: '800' },
