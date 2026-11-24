@@ -1,5 +1,13 @@
 This is an Expo/React Native mobile application. Prioritize mobile-first patterns, performance, and cross-platform compatibility.
 
+## Project memory — read first
+
+- [TECHNOLOGY.md](TECHNOLOGY.md): architecture of the app **and** the backend (`backend/`, separate git repo),
+  deployment (Cloudflare Workers + MongoDB Atlas), commands, APK build, and known gotchas.
+- [BUSINESS.md](BUSINESS.md): product rules, features, definitions and release history.
+
+Keep both files up to date when you change behaviour, architecture, deployment or release a new version.
+
 ## Expo has changed — do not trust your training data
 
 Expo ships breaking changes every SDK release. APIs you remember are likely renamed, moved, or removed. Before writing any code that touches an Expo, EAS, or React Native API:

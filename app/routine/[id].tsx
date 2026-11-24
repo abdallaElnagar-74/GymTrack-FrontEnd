@@ -21,6 +21,7 @@ import {
   renameRoutine,
   saveDayExercisePlan,
   startWorkoutFromDay,
+  getWorkoutExercises,
   type DayWithExercises,
   type Exercise,
   type PlannedSet,
@@ -128,8 +129,11 @@ export default function RoutineEditor() {
       router.navigate('/');
       return;
     }
-    await startWorkoutFromDay(api, day.id);
+    const workoutId = await startWorkoutFromDay(api, day.id);
+    const first = (await getWorkoutExercises(api, workoutId))[0];
     router.navigate('/');
+    // The workout opens straight on its first exercise.
+    if (first) router.push({ pathname: '/train/[id]', params: { id: first.exercise.id } });
   };
 
   const onDeletePlan = () =>

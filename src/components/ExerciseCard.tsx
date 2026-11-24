@@ -78,7 +78,9 @@ export function ExerciseCard({
       <View style={styles.header}>
         <Pressable
           style={styles.titleWrap}
-          onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: String(exercise.id) } })}>
+          accessibilityRole="button"
+          accessibilityHint="Opens this exercise to train it set by set"
+          onPress={() => router.push({ pathname: '/train/[id]', params: { id: String(exercise.id) } })}>
           <View style={{ flex: 1 }}>
             <Text style={styles.name} numberOfLines={1}>
               {exercise.name}

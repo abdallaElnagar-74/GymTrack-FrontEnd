@@ -2,7 +2,7 @@
   "expo": {
     "name": "Gym Tracker",
     "slug": "GymApp",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "gymapp",
@@ -20,7 +20,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.gymtracker.app",
-      "versionCode": 4
+      "versionCode": 5
     },
     "web": {
       "bundler": "metro",

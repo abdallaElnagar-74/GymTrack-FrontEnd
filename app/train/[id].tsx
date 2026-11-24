@@ -1,0 +1,560 @@
+import { useCallback, useRef, useState } from 'react';
+import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
+
+import { useApi, type Api } from '@/src/api/SessionContext';
+import { ExerciseVideos } from '@/src/components/ExerciseVideos';
+import { RestTimer } from '@/src/components/RestTimer';
+import { Button, DetailState, Pill } from '@/src/components/ui';
+import {
+  addExerciseVideo,
+  addSet,
+  deleteExerciseVideo,
+  getActiveWorkout,
+  getExerciseVideos,
+  getWorkoutExercises,
+  setSetDone,
+  setSetKind,
+  updateSet,
+  type ExerciseVideo,
+  type SetKind,
+  type VideoSource,
+  type Workout,
+  type WorkoutExercise,
+  type WorkoutSet,
+} from '@/src/db/queries';
+import { rest as restTimer, useRest } from '@/src/hooks/useRest';
+import { groupColor, theme } from '@/src/theme';
+import { useUnit } from '@/src/UnitContext';
+import { notify } from '@/src/utils/confirm';
+import { haptic, reportError } from '@/src/utils/feedback';
+import { fromDisplay, toDisplay, type Unit } from '@/src/utils/format';
+import { kindInfo, kindOrdinals, setLabels } from '@/src/utils/setKind';
+import { deleteVideoFile } from '@/src/utils/videoFiles';
+
+const NEXT_KIND: Record<SetKind, SetKind> = { normal: 'warmup', warmup: 'drop', drop: 'normal' };
+
+/** Weight / reps typed but not sent yet, per set id. */
+type PendingEdits = Map<string, { reps: number; weightKg: number; timer: ReturnType<typeof setTimeout> }>;
+
+function saveEdit(api: Api, pending: PendingEdits, setId: string) {
+  const e = pending.get(setId);
+  if (!e) return Promise.resolve();
+  clearTimeout(e.timer);
+  pending.delete(setId);
+  return updateSet(api, setId, e.reps, e.weightKg).catch(reportError);
+}
+
+const flushEdits = (api: Api, pending: PendingEdits) =>
+  Promise.all([...pending.keys()].map((id) => saveEdit(api, pending, id)));
+
+/**
+ * Training one exercise of the workout in progress: its videos, then one set at a time
+ * (type from the plan, weight, reps, ✓ Done). Done moves to the next set and starts the rest
+ * timer; after the last set it moves on to the next exercise, after the last exercise to Finish.
+ */
+export default function TrainExercise() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const api = useApi();
+  const { unit, restSeconds } = useUnit();
+  const rest = useRest();
+  const [workout, setWorkout] = useState<Workout | null>(null);
+  const [groups, setGroups] = useState<WorkoutExercise[]>([]);
+  const [videos, setVideos] = useState<ExerciseVideo[]>([]);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'missing'>('loading');
+  // The set shown in the big card (null = the first set not done yet).
+  const [currentId, setCurrentId] = useState<string | null>(null);
+  const pending = useRef<PendingEdits>(new Map());
+  const inFlight = useRef(new Set<Promise<unknown>>());
+  const track = (p: Promise<unknown>) => {
+    const q = p.catch(reportError).finally(() => inFlight.current.delete(q));
+    inFlight.current.add(q);
+  };
+
+  const load = useCallback(async () => {
+    try {
+      const [w, v] = await Promise.all([getActiveWorkout(api), getExerciseVideos(api, id)]);
+      setVideos(v);
+      if (!w) return setStatus('missing');
+      const g = await getWorkoutExercises(api, w.id, { context: true });
+      setWorkout(w);
+      setGroups(g);
+      setStatus(g.some((x) => x.exercise.id === id) ? 'ready' : 'missing');
+    } catch (e) {
+      reportError(e);
+    }
+  }, [api, id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      load();
+      const edits = pending.current;
+      return () => {
+        flushEdits(api, edits);
+      };
+    }, [load, api])
+  );
+
+  if (status !== 'ready' || !workout) {
+    if (status === 'missing') {
+      return (
+        <View style={{ flex: 1, backgroundColor: theme.bg }}>
+          <Stack.Screen options={{ title: 'Workout' }} />
+          <DetailState missing what="exercise in your current workout" />
+        </View>
+      );
+    }
+    return <DetailState missing={false} what="exercise" />;
+  }
+
+  const index = groups.findIndex((g) => g.exercise.id === id);
+  const group = groups[index];
+  const { exercise, sets, last } = group;
+  const labels = setLabels(sets);
+  const ords = kindOrdinals(sets);
+  const lastOrds = last ? kindOrdinals(last.sets) : [];
+  const firstUndone = sets.find((s) => s.done !== 1);
+  const current = sets.find((s) => s.id === currentId) ?? firstUndone ?? sets[sets.length - 1];
+  const ci = current ? sets.indexOf(current) : -1;
+  const prevFor = (i: number) =>
+    last?.sets.find((p, j) => (p.kind ?? 'normal') === (sets[i].kind ?? 'normal') && lastOrds[j] === ords[i]);
+  const undoneElsewhere = (g: WorkoutExercise) => g.sets.some((s) => s.done !== 1);
+  const nextExercise =
+    groups.slice(index + 1).find(undoneElsewhere) ?? groups.slice(0, index).find(undoneElsewhere);
+  const color = groupColor(exercise.muscle_group);
+
+  const patchSet = (setId: string, patch: Partial<WorkoutSet>) =>
+    setGroups((prev) =>
+      prev.map((g) => (g.exercise.id !== id ? g : { ...g, sets: g.sets.map((s) => (s.id === setId ? { ...s, ...patch } : s)) }))
+    );
+
+  const onChangeSet = (set: WorkoutSet, reps: number, weightKg: number) => {
+    patchSet(set.id, { reps, weight_kg: weightKg });
+    const p = pending.current;
+    clearTimeout(p.get(set.id)?.timer);
+    p.set(set.id, { reps, weightKg, timer: setTimeout(() => saveEdit(api, p, set.id), 500) });
+  };
+
+  const onKind = (set: WorkoutSet) => {
+    const kind = NEXT_KIND[set.kind ?? 'normal'];
+    patchSet(set.id, { kind });
+    track(setSetKind(api, set.id, kind));
+  };
+
+  const go = (exerciseId: string) => router.replace({ pathname: '/train/[id]', params: { id: exerciseId } });
+
+  const leave = async () => {
+    await Promise.all([flushEdits(api, pending.current), ...inFlight.current]);
+  };
+
+  const onDone = async (set: WorkoutSet) => {
+    if (set.reps <= 0) {
+      notify('Enter reps first', 'Type how many reps you did before ticking the set.');
+      return;
+    }
+    Keyboard.dismiss();
+    haptic.tap();
+    patchSet(set.id, { done: 1 });
+    track(setSetDone(api, set.id, true));
+
+    const remaining = sets.filter((s) => s.id !== set.id && s.done !== 1);
+    if (remaining.length) {
+      // The next set after this one that isn't done (or the first one left).
+      const after = sets.slice(ci + 1).find((s) => s.done !== 1) ?? remaining[0];
+      setCurrentId(after.id);
+      restTimer.start(restSeconds);
+      return;
+    }
+    // Exercise complete: on to the next exercise (or back to finish the workout).
+    haptic.success();
+    restTimer.start(restSeconds, nextExercise ? nextExercise.exercise.name : 'Finish workout');
+    await leave();
+    setTimeout(() => {
+      if (nextExercise) go(nextExercise.exercise.id);
+      else {
+        router.navigate('/');
+        notify('All sets done 💪', 'Tap "Finish workout" to save it to your history.');
+      }
+    }, 450);
+  };
+
+  const onUndo = (set: WorkoutSet) => {
+    patchSet(set.id, { done: 0 });
+    track(setSetDone(api, set.id, false));
+  };
+
+  const onAddSet = async () => {
+    const base = sets[sets.length - 1];
+    await leave();
+    await addSet(api, workout.id, id, base?.reps ?? 0, base?.weight_kg ?? 0, base?.kind === 'warmup' ? 'normal' : (base?.kind ?? 'normal'));
+    const g = await getWorkoutExercises(api, workout.id, { context: true });
+    setGroups(g);
+    const added = g.find((x) => x.exercise.id === id)?.sets.at(-1);
+    if (added) setCurrentId(added.id);
+  };
+
+  const onAddVideo = async (source: VideoSource, url: string, title: string) => {
+    await addExerciseVideo(api, id, source, url, title);
+    setVideos(await getExerciseVideos(api, id));
+  };
+  const onDeleteVideo = async (v: ExerciseVideo) => {
+    await deleteExerciseVideo(api, v.id);
+    if (v.source === 'file') deleteVideoFile(v.url);
+    setVideos(await getExerciseVideos(api, id));
+  };
+
+  const doneCount = sets.filter((s) => s.done === 1).length;
+  const isLastSetHere = current && sets.filter((s) => s.done !== 1 && s.id !== current.id).length === 0;
+  const doneLabel = !isLastSetHere
+    ? 'Done · next set'
+    : nextExercise
+      ? `Done · next: ${nextExercise.exercise.name}`
+      : 'Done · finish workout';
+
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.bg }}>
+      <Stack.Screen
+        options={{
+          title: exercise.name,
+          headerRight: () => (
+            <Text style={styles.headerCount}>
+              {index + 1} / {groups.length}
+            </Text>
+          ),
+        }}
+      />
+      <ScrollView
+        contentContainerStyle={{ padding: 16, paddingBottom: rest ? 150 : 40 }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets>
+        <ExerciseVideos videos={videos} onAdd={onAddVideo} onDelete={onDeleteVideo} />
+
+        <Text style={styles.name}>{exercise.name}</Text>
+        <View style={styles.metaRow}>
+          <Pill text={exercise.muscle_group} color={color} />
+          <Text style={styles.meta}>
+            Exercise {index + 1} of {groups.length} · {doneCount}/{sets.length} sets done
+          </Text>
+        </View>
+
+        {/* Every set of this exercise: tap one to work on it. */}
+        <View style={styles.chips}>
+          {sets.map((s, i) => {
+            const info = kindInfo(s.kind);
+            const active = s.id === current?.id;
+            const special = s.kind !== 'normal';
+            return (
+              <Pressable
+                key={s.id}
+                onPress={() => setCurrentId(s.id)}
+                accessibilityRole="button"
+                accessibilityLabel={`${info.label} ${labels[i]}${s.done === 1 ? ', done' : ''}`}
+                accessibilityState={{ selected: active }}
+                style={[
+                  styles.chip,
+                  special && { borderColor: info.color + '88' },
+                  s.done === 1 && styles.chipDone,
+                  active && styles.chipActive,
+                ]}>
+                <Text style={[styles.chipText, special && { color: info.color }, active && { color: theme.onAccent }]}>
+                  {s.done === 1 ? '✓' : labels[i]}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {current ? (
+          <SetCard
+            key={current.id}
+            set={current}
+            label={labels[ci]}
+            number={ci + 1}
+            total={sets.length}
+            prev={prevFor(ci)}
+            unit={unit}
+            doneLabel={doneLabel}
+            onChange={(r, w) => onChangeSet(current, r, w)}
+            onKind={() => onKind(current)}
+            onDone={() => onDone(current)}
+            onUndo={() => onUndo(current)}
+            onPrev={ci > 0 ? () => setCurrentId(sets[ci - 1].id) : undefined}
+            onNext={ci < sets.length - 1 ? () => setCurrentId(sets[ci + 1].id) : undefined}
+          />
+        ) : (
+          <Text style={styles.meta}>No sets yet — add one below.</Text>
+        )}
+
+        <Button title="Add set" icon="+" variant="secondary" onPress={onAddSet} style={{ marginTop: 12 }} />
+
+        <View style={styles.navRow}>
+          <Button
+            title="Previous"
+            icon="‹"
+            variant="secondary"
+            disabled={index === 0}
+            onPress={async () => {
+              await leave();
+              go(groups[index - 1].exercise.id);
+            }}
+            style={{ flex: 1 }}
+          />
+          <Button
+            title="Next"
+            icon="›"
+            variant="secondary"
+            disabled={index === groups.length - 1}
+            onPress={async () => {
+              await leave();
+              go(groups[index + 1].exercise.id);
+            }}
+            style={{ flex: 1 }}
+          />
+        </View>
+        <View style={styles.linkRow}>
+          <Pressable onPress={() => router.navigate('/')} hitSlop={8}>
+            <Text style={styles.link}>All exercises</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => router.push({ pathname: '/exercise/[id]', params: { id } })}
+            hitSlop={8}>
+            <Text style={styles.link}>History & records</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+      {rest && <RestTimer rest={rest} onAdjust={restTimer.adjust} onClose={restTimer.clear} />}
+    </View>
+  );
+}
+
+/** The set being worked on: type, last time, big weight / reps boxes with − / +, Done. */
+function SetCard({
+  set,
+  label,
+  number,
+  total,
+  prev,
+  unit,
+  doneLabel,
+  onChange,
+  onKind,
+  onDone,
+  onUndo,
+  onPrev,
+  onNext,
+}: {
+  set: WorkoutSet;
+  label: string;
+  number: number;
+  total: number;
+  prev?: WorkoutSet;
+  unit: Unit;
+  doneLabel: string;
+  onChange: (reps: number, weightKg: number) => void;
+  onKind: () => void;
+  onDone: () => void;
+  onUndo: () => void;
+  onPrev?: () => void;
+  onNext?: () => void;
+}) {
+  const [weight, setWeight] = useState(set.weight_kg > 0 ? String(toDisplay(set.weight_kg, unit)) : '');
+  const [reps, setReps] = useState(set.reps > 0 ? String(set.reps) : '');
+  const info = kindInfo(set.kind);
+  const done = set.done === 1;
+  const step = unit === 'kg' ? 2.5 : 5;
+
+  const commit = (w: string, r: string) => {
+    const wN = Math.max(0, parseFloat(w.replace(',', '.')) || 0);
+    const rN = Math.max(0, parseInt(r, 10) || 0);
+    onChange(rN, fromDisplay(wN, unit));
+  };
+  const bumpWeight = (d: number) => {
+    const v = Math.max(0, Math.round(((parseFloat(weight.replace(',', '.')) || 0) + d) * 10) / 10);
+    const t = v > 0 ? String(v) : '';
+    setWeight(t);
+    commit(t, reps);
+  };
+  const bumpReps = (d: number) => {
+    const v = Math.max(0, (parseInt(reps, 10) || 0) + d);
+    const t = v > 0 ? String(v) : '';
+    setReps(t);
+    commit(weight, t);
+  };
+
+  return (
+    <View style={[styles.card, done && styles.cardDone]}>
+      <View style={styles.cardTop}>
+        <Pressable onPress={onPrev} disabled={!onPrev} hitSlop={10} accessibilityLabel="Previous set">
+          <Text style={[styles.arrow, !onPrev && { opacity: 0.2 }]}>‹</Text>
+        </Pressable>
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={styles.setTitle}>
+            Set {number} of {total}
+          </Text>
+          <Pressable
+            onPress={onKind}
+            accessibilityRole="button"
+            accessibilityLabel={`${info.label}. Tap to change set type`}
+            style={[styles.kind, { backgroundColor: info.color + '26', borderColor: info.color + '66' }]}>
+            <Text style={[styles.kindText, { color: info.color }]}>
+              {label} · {info.label}
+            </Text>
+          </Pressable>
+        </View>
+        <Pressable onPress={onNext} disabled={!onNext} hitSlop={10} accessibilityLabel="Next set">
+          <Text style={[styles.arrow, !onNext && { opacity: 0.2 }]}>›</Text>
+        </Pressable>
+      </View>
+
+      <Text style={styles.lastTime}>
+        {prev ? `Last time: ${toDisplay(prev.weight_kg, unit)} ${unit} × ${prev.reps} reps` : 'First time for this set ✨'}
+      </Text>
+
+      <View style={styles.fields}>
+        <Field
+          label={`WEIGHT (${unit.toUpperCase()})`}
+          value={weight}
+          placeholder={prev ? String(toDisplay(prev.weight_kg, unit)) : '0'}
+          keyboardType="decimal-pad"
+          onChangeText={(t) => {
+            setWeight(t);
+            commit(t, reps);
+          }}
+          onMinus={() => bumpWeight(-step)}
+          onPlus={() => bumpWeight(step)}
+        />
+        <Field
+          label="REPS"
+          value={reps}
+          placeholder={prev ? String(prev.reps) : '0'}
+          keyboardType="number-pad"
+          onChangeText={(t) => {
+            setReps(t);
+            commit(weight, t);
+          }}
+          onMinus={() => bumpReps(-1)}
+          onPlus={() => bumpReps(1)}
+        />
+      </View>
+
+      {done ? (
+        <View style={styles.doneRow}>
+          <Text style={styles.doneText}>✓ Done</Text>
+          <Button title="Undo" variant="secondary" onPress={onUndo} style={{ minWidth: 110 }} />
+        </View>
+      ) : (
+        <Button title={doneLabel} icon="✓" size="lg" onPress={onDone} style={{ marginTop: 16 }} />
+      )}
+    </View>
+  );
+}
+
+function Field({
+  label,
+  value,
+  placeholder,
+  keyboardType,
+  onChangeText,
+  onMinus,
+  onPlus,
+}: {
+  label: string;
+  value: string;
+  placeholder: string;
+  keyboardType: 'decimal-pad' | 'number-pad';
+  onChangeText: (t: string) => void;
+  onMinus: () => void;
+  onPlus: () => void;
+}) {
+  return (
+    <View style={{ flex: 1 }}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={styles.fieldRow}>
+        <Pressable onPress={onMinus} style={styles.step} accessibilityRole="button" accessibilityLabel={`Less ${label}`}>
+          <Text style={styles.stepText}>−</Text>
+        </Pressable>
+        <TextInput
+          style={styles.bigInput}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={theme.faint}
+          keyboardType={keyboardType}
+          selectTextOnFocus
+          accessibilityLabel={label}
+        />
+        <Pressable onPress={onPlus} style={styles.step} accessibilityRole="button" accessibilityLabel={`More ${label}`}>
+          <Text style={styles.stepText}>+</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  headerCount: { color: theme.muted, fontWeight: '800', fontSize: 15, marginRight: 8 },
+  name: { color: theme.text, fontSize: 26, lineHeight: 32, fontWeight: '800', marginTop: 18 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6, flexWrap: 'wrap' },
+  meta: { color: theme.muted, fontSize: 13 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 18 },
+  chip: {
+    minWidth: 44,
+    height: 44,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    backgroundColor: theme.card,
+    borderWidth: 1.5,
+    borderColor: theme.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipDone: { backgroundColor: 'rgba(52,210,123,0.14)', borderColor: 'rgba(52,210,123,0.5)' },
+  chipActive: { backgroundColor: theme.accent, borderColor: theme.accent },
+  chipText: { color: theme.text, fontWeight: '800', fontSize: 15 },
+  card: {
+    backgroundColor: theme.card,
+    borderRadius: 20,
+    padding: 16,
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  cardDone: { borderColor: 'rgba(52,210,123,0.5)' },
+  cardTop: { flexDirection: 'row', alignItems: 'center' },
+  arrow: { color: theme.text, fontSize: 40, fontWeight: '300', paddingHorizontal: 8, lineHeight: 44 },
+  setTitle: { color: theme.text, fontSize: 20, fontWeight: '800' },
+  kind: { marginTop: 6, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1 },
+  kindText: { fontWeight: '800', fontSize: 13 },
+  lastTime: { color: theme.muted, textAlign: 'center', marginTop: 12, fontSize: 14 },
+  fields: { flexDirection: 'row', gap: 12, marginTop: 14 },
+  fieldLabel: { color: theme.faint, fontSize: 11, fontWeight: '800', letterSpacing: 0.8, textAlign: 'center', marginBottom: 6 },
+  fieldRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  step: {
+    width: 38,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: theme.cardAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepText: { color: theme.accent, fontSize: 24, fontWeight: '800' },
+  bigInput: {
+    flex: 1,
+    minWidth: 0,
+    height: 56,
+    backgroundColor: theme.input,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: theme.border,
+    color: theme.text,
+    fontSize: 26,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  doneRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 },
+  doneText: { color: theme.success, fontSize: 18, fontWeight: '800' },
+  navRow: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  linkRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 18, paddingHorizontal: 4 },
+  link: { color: theme.accent, fontWeight: '700', fontSize: 14 },
+});

@@ -16,7 +16,8 @@ import { useApi, type Api } from '@/src/api/SessionContext';
 
 import { ExerciseCard } from '@/src/components/ExerciseCard';
 import { ExercisePicker } from '@/src/components/ExercisePicker';
-import { RestTimer, type Rest } from '@/src/components/RestTimer';
+import { RestTimer } from '@/src/components/RestTimer';
+import { rest as restTimer, useRest } from '@/src/hooks/useRest';
 import { Button, LoadError, Loading, ScreenHeader, StatTile } from '@/src/components/ui';
 import { useScreenData } from '@/src/hooks/useScreenData';
 import { WorkoutTimer } from '@/src/components/WorkoutTimer';
@@ -61,7 +62,6 @@ function greeting() {
 }
 
 /** Clock reads for tap handlers (kept out of the component so they are never part of rendering). */
-const msFromNow = (ms: number) => Date.now() + ms;
 const msSince = (t: number) => Date.now() - t;
 
 function formatDuration(ms: number) {
@@ -100,7 +100,7 @@ export default function WorkoutScreen() {
   const [picker, setPicker] = useState(false);
   // Exercises picked but not on the server yet (shown as placeholder cards).
   const [adding, setAdding] = useState<Exercise[]>([]);
-  const [rest, setRest] = useState<Rest | null>(null);
+  const rest = useRest();
   // Blocks the screen with a spinner while a whole-workout action runs (start, finish, discard).
   const [busy, setBusy] = useState<string | null>(null);
   const pending = useRef<PendingEdits>(new Map());
@@ -127,7 +127,7 @@ export default function WorkoutScreen() {
       const [s, p] = await Promise.all([getDashboardStats(api), getRoutinesFull(api)]);
       setWorkout(null);
       setGroups([]);
-      setRest(null);
+      restTimer.clear();
       setStats(s);
       setPlans(p);
     }
@@ -158,7 +158,13 @@ export default function WorkoutScreen() {
 
   const onStartEmpty = () => run('Starting workout…', () => startWorkout(api));
 
-  const onStartDay = (dayId: string) => run('Starting workout…', () => startWorkoutFromDay(api, dayId));
+  // A plan day opens straight on its first exercise.
+  const onStartDay = (dayId: string) =>
+    run('Starting workout…', async () => {
+      const workoutId = await startWorkoutFromDay(api, dayId);
+      const first = (await getWorkoutExercises(api, workoutId))[0];
+      if (first) router.push({ pathname: '/train/[id]', params: { id: first.exercise.id } });
+    });
 
   const onPick = async (ex: Exercise) => {
     if (!workout) return;
@@ -245,25 +251,8 @@ export default function WorkoutScreen() {
       }, 150);
     }
 
-    if (done && restSeconds > 0) {
-      setRest({
-        endsAt: msFromNow(restSeconds * 1000),
-        total: restSeconds * 1000,
-        next: finishedExercise ? (next ? next.exercise.name : 'Finish workout') : undefined,
-      });
-    }
+    if (done) restTimer.start(restSeconds, finishedExercise ? (next ? next.exercise.name : 'Finish workout') : undefined);
   };
-
-  const adjustRest = useCallback(
-    (delta: number) =>
-      setRest((r) => {
-        if (!r) return r;
-        const endsAt = Math.max(Date.now(), r.endsAt + delta);
-        return { endsAt, total: Math.max(r.total + delta, endsAt - Date.now(), 1) };
-      }),
-    []
-  );
-  const closeRest = useCallback(() => setRest(null), []);
 
   // Removed from the screen at once; put back (by reloading) if the server says no.
   const onDeleteSet = (set: WorkoutSet) =>
@@ -540,7 +529,7 @@ export default function WorkoutScreen() {
         </View>
         <Button title="Discard workout" variant="danger" onPress={onDiscard} style={{ marginTop: 10 }} />
       </ScrollView>
-      {rest && <RestTimer rest={rest} onAdjust={adjustRest} onClose={closeRest} />}
+      {rest && <RestTimer rest={rest} onAdjust={restTimer.adjust} onClose={restTimer.clear} />}
       <ExercisePicker visible={picker} onClose={() => setPicker(false)} onPick={onPick} />
       {overlay}
     </View>
