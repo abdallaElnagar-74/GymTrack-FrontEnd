@@ -4,7 +4,7 @@ import { confirm } from '@/src/utils/confirm';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useApi } from '@/src/api/SessionContext';
 
-import { Button, GroupDot, Pill, StatTile, DetailState } from '@/src/components/ui';
+import { Arrow, Button, GroupDot, Pill, StatTile, DetailState } from '@/src/components/ui';
 import {
   deleteWorkout,
   getWorkout,
@@ -86,7 +86,7 @@ export default function WorkoutDetail() {
                 <Text style={styles.name}>{g.exercise.name}</Text>
                 <Pill text={t(g.exercise.muscle_group)} color={c} />
               </View>
-              <Text style={styles.chev}>{isRTL ? '‹' : '›'}</Text>
+              <Arrow style={styles.chev} />
             </Pressable>
             {g.sets.map((s, i, arr) => {
               const k = kindInfo(s.kind);

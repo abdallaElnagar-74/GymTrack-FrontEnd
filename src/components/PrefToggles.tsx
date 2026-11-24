@@ -109,6 +109,6 @@ const styles = StyleSheet.create({
     borderColor: theme.border,
   },
   segItem: { flex: 1, height: 44, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  segActive: { backgroundColor: theme.accent },
+  segActive: { backgroundColor: theme.fill },
   segText: { color: theme.muted, fontWeight: '700', fontSize: 15 },
 });

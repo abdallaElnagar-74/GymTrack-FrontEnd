@@ -252,7 +252,7 @@ function DayCard({
   return (
     <View style={[styles.day, isNext && { borderColor: alpha(theme.accent, 0.4) }]}>
       <View style={styles.dayHead}>
-        <View style={[styles.dayIdx, isNext && { backgroundColor: theme.accent }]}>
+        <View style={[styles.dayIdx, isNext && { backgroundColor: theme.fill }]}>
           <Text style={[styles.dayIdxText, isNext && { color: theme.onAccent }]}>{index + 1}</Text>
         </View>
         <TextInput

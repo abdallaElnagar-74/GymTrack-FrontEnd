@@ -5,7 +5,7 @@ import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router
 import { useApi, type Api } from '@/src/api/SessionContext';
 import { ExerciseVideos } from '@/src/components/ExerciseVideos';
 import { RestTimer } from '@/src/components/RestTimer';
-import { Button, DetailState, Pill } from '@/src/components/ui';
+import { Arrow, Button, DetailState, Pill } from '@/src/components/ui';
 import {
   addExerciseVideo,
   addSet,
@@ -306,7 +306,7 @@ export default function TrainExercise() {
         <View style={styles.navRow}>
           <Button
             title={t('Previous')}
-            icon={isRTL ? '›' : '‹'}
+            arrow="back"
             variant="secondary"
             disabled={index === 0}
             onPress={async () => {
@@ -317,7 +317,7 @@ export default function TrainExercise() {
           />
           <Button
             title={t('Next')}
-            icon={isRTL ? '‹' : '›'}
+            arrow="forward"
             variant="secondary"
             disabled={index === groups.length - 1}
             onPress={async () => {
@@ -449,7 +449,7 @@ function SetCard({
     <View style={[styles.card, done && styles.cardDone]}>
       <View style={styles.cardTop}>
         <Pressable onPress={onPrev} disabled={!onPrev} hitSlop={10} accessibilityLabel={t('Previous set')}>
-          <Text style={[styles.arrow, !onPrev && { opacity: 0.2 }]}>{isRTL ? '›' : '‹'}</Text>
+          <Arrow dir="back" style={[styles.arrow, !onPrev && { opacity: 0.2 }]} />
         </Pressable>
         <View style={{ flex: 1, alignItems: 'center' }}>
           <Text style={styles.setTitle}>
@@ -466,7 +466,7 @@ function SetCard({
           </Pressable>
         </View>
         <Pressable onPress={onNext} disabled={!onNext} hitSlop={10} accessibilityLabel={t('Next set')}>
-          <Text style={[styles.arrow, !onNext && { opacity: 0.2 }]}>{isRTL ? '‹' : '›'}</Text>
+          <Arrow style={[styles.arrow, !onNext && { opacity: 0.2 }]} />
         </Pressable>
       </View>
 
@@ -592,7 +592,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   chipDone: { backgroundColor: alpha(theme.success, 0.14), borderColor: alpha(theme.success, 0.5) },
-  chipActive: { backgroundColor: theme.accent, borderColor: theme.accent },
+  chipActive: { backgroundColor: theme.fill, borderColor: theme.fill },
   chipText: { color: theme.text, fontWeight: '800', fontSize: 15 },
   card: {
     backgroundColor: theme.card,

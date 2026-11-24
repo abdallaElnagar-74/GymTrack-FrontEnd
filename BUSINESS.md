@@ -4,7 +4,7 @@ Product memory for AI assistants and developers: what the app is for, what it do
 feature, and what was decided. Keep these rules when changing features. Technical details are in
 [TECHNOLOGY.md](TECHNOLOGY.md).
 
-_Last updated: 2026-11-24 · current release v1.1.0._
+_Last updated: 2026-11-24 · current release v1.1.2._
 
 ---
 
@@ -124,6 +124,8 @@ Top to bottom: **Language** (English / العربية), **Appearance** (Auto / D
 | 1.0.11 | 2026-11-24 | Weight and reps boxes start at 0 |
 | 1.0.12 | 2026-11-24 | Last set button just says "Done"; rest screen shows the next set/exercise under the timer; responsive rest screen |
 | 1.1.0 | 2026-11-24 | Arabic + English (right-to-left), light / dark / auto mode, logo follows the theme, Settings reorganised (sign out at the bottom) |
+| 1.1.1 | 2026-11-24 | Arrows point the right way in Arabic; clearer buttons in light mode (neon green with dark text, white secondary buttons with a border) |
+| 1.1.2 | 2026-11-24 | Arrows drawn as vector icons: point outward (left) in Arabic, right in English |
 
 APKs are built locally (`E:\GymApp\GymTrack-<version>.apk`) and installed by sideloading over the previous version.
 Not on Google Play yet.

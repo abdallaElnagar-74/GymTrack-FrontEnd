@@ -7,7 +7,7 @@ import { useApi } from '@/src/api/SessionContext';
 import { ExercisePicker } from '@/src/components/ExercisePicker';
 import { RestTimer } from '@/src/components/RestTimer';
 import { rest as restTimer, useRest } from '@/src/hooks/useRest';
-import { Button, LoadError, Loading, ScreenHeader, StatTile } from '@/src/components/ui';
+import { Arrow, Button, LoadError, Loading, ScreenHeader, StatTile } from '@/src/components/ui';
 import { useScreenData } from '@/src/hooks/useScreenData';
 import { WorkoutTimer } from '@/src/components/WorkoutTimer';
 import {
@@ -444,7 +444,7 @@ function ExerciseRow({
             {complete ? `✓ ${t('Done')}` : t('{done}/{total} sets done', { done, total: sets.length })} · {t(exercise.muscle_group)}
           </Text>
         </View>
-        <Text style={styles.chev}>{isRTL ? '‹' : '›'}</Text>
+        <Arrow style={styles.chev} />
       </View>
       <View style={styles.miniChips}>
         {sets.map((st, i) => {
@@ -530,7 +530,7 @@ const styles = StyleSheet.create({
     borderColor: theme.border,
     marginBottom: 4,
   },
-  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.accent },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.fill },
   timer: { color: theme.text, fontSize: 17, fontWeight: '800', fontVariant: ['tabular-nums'] },
   summary: {
     flexDirection: 'row',

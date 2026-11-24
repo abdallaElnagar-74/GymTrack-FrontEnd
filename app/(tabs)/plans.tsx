@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { router } from 'expo-router';
 import { useApi } from '@/src/api/SessionContext';
 
-import { Button, LoadError, Loading, ScreenHeader, SectionTitle } from '@/src/components/ui';
+import { Arrow, Button, LoadError, Loading, ScreenHeader, SectionTitle } from '@/src/components/ui';
 import { useScreenData } from '@/src/hooks/useScreenData';
 import {
   createRoutine,
@@ -16,7 +16,7 @@ import { alpha, theme } from '@/src/theme';
 import { notify } from '@/src/utils/confirm';
 import { reportError } from '@/src/utils/feedback';
 import { formatShortDate } from '@/src/utils/format';
-import { isRTL, plural, t } from '@/src/i18n';
+import { plural, t } from '@/src/i18n';
 
 export default function PlansScreen() {
   const api = useApi();
@@ -116,7 +116,7 @@ export default function PlansScreen() {
                   {p.lastDone ? ` · ${t('last trained {date}', { date: formatShortDate(p.lastDone) })}` : ''}
                 </Text>
               </View>
-              <Text style={styles.chev}>{isRTL ? '‹' : '›'}</Text>
+              <Arrow style={styles.chev} />
             </View>
             {p.days.map((d, i) => (
               <View key={d.id} style={styles.dayRow}>
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: theme.accent,
+    backgroundColor: theme.fill,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dayIdxNext: { backgroundColor: theme.accent },
+  dayIdxNext: { backgroundColor: theme.fill },
   dayIdxText: { color: theme.text, fontWeight: '800' },
   dayName: { color: theme.text, fontSize: 15, fontWeight: '700' },
   nextTag: { color: theme.accent, fontSize: 11, fontWeight: '800' },

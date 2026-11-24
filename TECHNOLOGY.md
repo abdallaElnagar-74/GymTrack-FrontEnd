@@ -4,7 +4,7 @@ Technical memory for AI assistants and developers: how the mobile app and the ba
 run, tested and shipped, plus the traps already hit. Read this before changing code.
 Product rules and features are in [BUSINESS.md](BUSINESS.md).
 
-_Last updated: 2026-11-24 · app v1.1.0 (versionCode 14)._
+_Last updated: 2026-11-24 · app v1.1.2 (versionCode 16)._
 
 ---
 
@@ -141,7 +141,11 @@ cd android && NODE_ENV=production ./gradlew assembleRelease   # ~7-10 min
   entry in `src/i18n/ar.ts` (missing keys fall back to English). Translate muscle groups with `t(group)`;
   never translate exercise/plan names. Server error messages are passed through `t()` too.
 - **Never hardcode colours**: use `theme.*` and `alpha(theme.x, a)`. Styles must not use `letterSpacing` in Arabic
-  (it breaks letter joining): write `letterSpacing: isRTL ? 0 : 1`. Swap ‹ › chevrons with `isRTL`.
+  (it breaks letter joining): write `letterSpacing: isRTL ? 0 : 1`. Arrows: use `<Arrow dir="forward|back" />` /
+  `<Button arrow="back|forward">` from `ui.tsx` (an SVG chevron; never use ‹ › text: Android mirrors it in Arabic and
+  `writingDirection` is iOS-only).
+  Filled buttons/chips use `theme.fill` (neon lime in both modes) with `theme.onAccent` text; `theme.accent` is for
+  text/icons; secondary buttons use `theme.secondary` + `theme.secondaryBorder`.
 
 ### Gotchas already hit (mobile)
 - **Metro on this Windows PC sometimes serves a stale bundle** (file changes not picked up). If a change "doesn't show",

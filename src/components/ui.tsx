@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 import { isRTL, t } from '../i18n';
 import { alpha, groupColor, theme } from '../theme';
 import { reportError } from '../utils/feedback';
@@ -15,6 +16,7 @@ export function Button({
   variant = 'primary',
   style,
   icon,
+  arrow,
   size = 'md',
   disabled = false,
 }: {
@@ -24,6 +26,8 @@ export function Button({
   variant?: Variant;
   style?: StyleProp<ViewStyle>;
   icon?: string;
+  /** Arrow next to the title (points the right way in Arabic too). */
+  arrow?: 'forward' | 'back';
   size?: 'md' | 'lg';
   disabled?: boolean;
 }) {
@@ -50,10 +54,14 @@ export function Button({
   const content = busy ? (
     <ActivityIndicator color={fg} />
   ) : (
-    <Text style={[styles.btnText, { color: fg }, size === 'lg' && { fontSize: 18 }]}>
-      {icon ? `${icon}  ` : ''}
-      {title}
-    </Text>
+    <View style={styles.btnRow}>
+      {arrow === 'back' ? <Arrow dir="back" style={{ color: fg, fontSize: 22 }} /> : null}
+      {icon ? (
+        <Text style={[styles.btnText, { color: fg }, size === 'lg' && { fontSize: 18 }]}>{icon}</Text>
+      ) : null}
+      <Text style={[styles.btnText, { color: fg }, size === 'lg' && { fontSize: 18 }]}>{title}</Text>
+      {arrow === 'forward' ? <Arrow style={{ color: fg, fontSize: 22 }} /> : null}
+    </View>
   );
   const h = size === 'lg' ? 58 : 50;
 
@@ -70,7 +78,7 @@ export function Button({
       ]}>
       {variant === 'primary' ? (
         <LinearGradient
-          colors={[theme.accent, theme.accentDark]}
+          colors={[theme.fill, theme.fillDark]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[styles.btn, { minHeight: h }]}>
@@ -81,7 +89,11 @@ export function Button({
           style={[
             styles.btn,
             { minHeight: h },
-            variant === 'secondary' && { backgroundColor: theme.cardAlt },
+            variant === 'secondary' && {
+              backgroundColor: theme.secondary,
+              borderWidth: 1,
+              borderColor: theme.secondaryBorder,
+            },
             variant === 'danger' && { backgroundColor: alpha(theme.danger, 0.14), borderWidth: 1, borderColor: alpha(theme.danger, 0.4) },
             variant === 'success' && { backgroundColor: theme.success },
             variant === 'ghost' && { borderWidth: 1.5, borderColor: theme.accent, borderStyle: 'dashed' },
@@ -90,6 +102,42 @@ export function Button({
         </View>
       )}
     </Pressable>
+  );
+}
+
+/**
+ * "Go forward / go back" arrow that points the right way in both languages: › / ‹ in English,
+ * flipped in Arabic. Drawn left-to-right so the system never mirrors it a second time.
+ */
+export function Arrow({ dir = 'forward', style }: { dir?: 'forward' | 'back'; style?: StyleProp<TextStyle> }) {
+  // Drawn as a vector (text arrows get mirrored by Android in Arabic). Size and colour come from
+  // the text style's fontSize / color, so it can replace a "›" character as-is.
+  const s = StyleSheet.flatten(style) ?? {};
+  const size = s.fontSize ?? 24;
+  const right = (dir === 'forward') !== isRTL;
+  const w = Math.round(size * 0.42);
+  const h = Math.round(size * 0.72);
+  return (
+    <View
+      style={{
+        width: w + 8,
+        height: Math.max(h, s.lineHeight ?? 0),
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: s.opacity,
+        paddingHorizontal: s.paddingHorizontal,
+      }}>
+      <Svg width={w} height={h} viewBox="0 0 10 18">
+        <Path
+          d={right ? 'M2 2 L8 9 L2 16' : 'M8 2 L2 9 L8 16'}
+          stroke={(s.color as string) ?? theme.faint}
+          strokeWidth={size >= 36 ? 1.6 : 2.2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
+      </Svg>
+    </View>
   );
 }
 
@@ -199,6 +247,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   btnText: { fontSize: 16, fontWeight: '700', letterSpacing: isRTL ? 0 : 0.2 },
+  btnRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   header: {
     paddingHorizontal: 20,
     paddingBottom: 12,

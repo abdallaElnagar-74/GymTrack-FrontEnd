@@ -6,11 +6,11 @@ import { ApiError } from '@/src/api/http';
 import { useScreenData } from '@/src/hooks/useScreenData';
 import { useApi } from '@/src/api/SessionContext';
 
-import { Button, GroupDot, LoadError, Loading, ScreenHeader } from '@/src/components/ui';
+import { Arrow, Button, GroupDot, LoadError, Loading, ScreenHeader } from '@/src/components/ui';
 import { addExercise, getExercises, type Exercise } from '@/src/db/queries';
 import { MUSCLE_GROUPS } from '@/src/db/seed';
 import { groupColor, theme } from '@/src/theme';
-import { isRTL, plural, t } from '@/src/i18n';
+import { plural, t } from '@/src/i18n';
 
 export default function ExercisesScreen() {
   const api = useApi();
@@ -139,7 +139,7 @@ export default function ExercisesScreen() {
             ]}
             onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: String(item.id) } })}>
             <Text style={styles.name}>{item.name}</Text>
-            <Text style={styles.chev}>{isRTL ? '‹' : '›'}</Text>
+            <Arrow style={styles.chev} />
           </Pressable>
         )}
         ListEmptyComponent={
@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: theme.accent,
+    backgroundColor: theme.fill,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,

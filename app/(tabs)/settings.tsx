@@ -10,9 +10,9 @@ import * as DocumentPicker from 'expo-document-picker';
 
 import { Logo } from '@/src/components/Logo';
 import { LanguageSegment, ModeSegment } from '@/src/components/PrefToggles';
-import { ScreenHeader, SectionTitle } from '@/src/components/ui';
+import { Arrow, ScreenHeader, SectionTitle } from '@/src/components/ui';
 import { exportAll, importAll, type BackupFile } from '@/src/db/queries';
-import { isRTL, t } from '@/src/i18n';
+import { t } from '@/src/i18n';
 import { alpha, theme } from '@/src/theme';
 import { useUnit } from '@/src/UnitContext';
 import type { Unit } from '@/src/utils/format';
@@ -189,7 +189,7 @@ function Row({
           {sub}
         </Text>
       </View>
-      <Text style={styles.chev}>{isRTL ? '‹' : '›'}</Text>
+      <Arrow style={styles.chev} />
     </Pressable>
   );
 }
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
     borderColor: theme.border,
   },
   segItem: { flex: 1, height: 44, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  segActive: { backgroundColor: theme.accent },
+  segActive: { backgroundColor: theme.fill },
   segText: { color: theme.muted, fontWeight: '700', fontSize: 15 },
   group: {
     backgroundColor: theme.card,

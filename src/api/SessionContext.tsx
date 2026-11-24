@@ -226,6 +226,6 @@ const styles = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: theme.bg, alignItems: 'center', justifyContent: 'center', padding: 28 },
   title: { color: theme.text, fontSize: 20, fontWeight: '800', textAlign: 'center', marginBottom: 10 },
   body: { color: theme.muted, fontSize: 15, lineHeight: 22, textAlign: 'center', maxWidth: 420, marginBottom: 22 },
-  btn: { backgroundColor: theme.accent, borderRadius: 12, paddingHorizontal: 28, paddingVertical: 12 },
+  btn: { backgroundColor: theme.fill, borderRadius: 12, paddingHorizontal: 28, paddingVertical: 12 },
   btnText: { color: theme.onAccent, fontWeight: '800', fontSize: 15 },
 });

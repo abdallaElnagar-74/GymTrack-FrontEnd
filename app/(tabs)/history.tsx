@@ -3,7 +3,7 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useApi } from '@/src/api/SessionContext';
 
-import { LoadError, Loading, ScreenHeader } from '@/src/components/ui';
+import { Arrow, LoadError, Loading, ScreenHeader } from '@/src/components/ui';
 import { useScreenData } from '@/src/hooks/useScreenData';
 import { getWorkoutSummaries, type WorkoutSummary } from '@/src/db/queries';
 import { alpha, theme } from '@/src/theme';
@@ -72,7 +72,7 @@ export default function HistoryScreen() {
                   {t('{n} {unit} total volume', { n: Math.round(toDisplay(item.volume, unit)).toLocaleString(), unit })}
                 </Text>
               </View>
-              <Text style={styles.chev}>{isRTL ? '‹' : '›'}</Text>
+              <Arrow style={styles.chev} />
             </Pressable>
           );
         }}

@@ -24,9 +24,15 @@ const dark = {
   text: '#f5f7fb',
   muted: '#8a91a3',
   faint: '#5a6172',
-  accent: '#c6ff3d', // neon lime
+  accent: '#c6ff3d', // neon lime: text, icons, borders
   accentDark: '#8fd400',
+  // Filled buttons / selected chips (with onAccent text on top)
+  fill: '#c6ff3d',
+  fillDark: '#8fd400',
   onAccent: '#0a0b0f',
+  // Secondary buttons
+  secondary: '#1e212b',
+  secondaryBorder: 'transparent',
   blue: '#4f9dff',
   success: '#34d27b',
   danger: '#ff5a5f',
@@ -41,13 +47,18 @@ const light: typeof dark = {
   card: '#ffffff',
   cardAlt: '#eef1f6',
   input: '#f6f8fb',
-  border: '#dfe3eb',
+  border: '#dce1ea',
   text: '#0f1218',
   muted: '#5b6273',
   faint: '#8f96a6',
-  accent: '#4f8f00', // deeper lime so text and icons stay readable on white
+  accent: '#4a8700', // deeper lime so text and icons stay readable on white
   accentDark: '#3d7000',
-  onAccent: '#ffffff',
+  // Brand neon lime for filled buttons, with dark text (same look as dark mode)
+  fill: '#c2f23a',
+  fillDark: '#a3dc1c',
+  onAccent: '#0f1218',
+  secondary: '#ffffff',
+  secondaryBorder: '#d3d9e3',
   blue: '#2f7de1',
   success: '#1f9d57',
   danger: '#e0393e',

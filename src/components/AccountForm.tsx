@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
     borderColor: theme.border,
   },
   segItem: { flex: 1, height: 42, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  segActive: { backgroundColor: theme.accent },
+  segActive: { backgroundColor: theme.fill },
   segText: { color: theme.muted, fontWeight: '700' },
   label: { color: theme.muted, fontSize: 12, fontWeight: '800', letterSpacing: isRTL ? 0 : 1, marginTop: 18, marginBottom: 6, textTransform: 'uppercase' },
   input: {
