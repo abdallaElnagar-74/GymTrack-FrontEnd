@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Constants from 'expo-constants';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { confirm, notify } from '@/src/utils/confirm';
 import { reportError } from '@/src/utils/feedback';
@@ -155,7 +156,7 @@ export default function SettingsScreen() {
           Your data is stored in the cloud database. A file backup is an extra copy you control.
         </Text>
 
-        <Text style={styles.footer}>Gym Tracker · v1.0</Text>
+        <Text style={styles.footer}>GymTrack · v{Constants.expoConfig?.version}</Text>
       </ScrollView>
     </View>
   );

@@ -173,7 +173,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       <View style={styles.wrap}>
         <Text style={styles.title}>Can’t reach the server</Text>
         <Text style={styles.body}>
-          Gym Tracker keeps your workouts in the cloud, so it needs an internet connection.{'\n\n'}
+          GymTrack keeps your workouts in the cloud, so it needs an internet connection.{'\n\n'}
           {error}
         </Text>
         <Pressable style={styles.btn} onPress={retry}>

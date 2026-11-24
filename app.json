@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Gym Tracker",
+    "name": "GymTrack",
     "slug": "GymApp",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "gymapp",
@@ -13,14 +13,14 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.gymtracker.app",
-      "versionCode": 5
+      "versionCode": 6
     },
     "web": {
       "bundler": "metro",
@@ -34,7 +34,8 @@
         {
           "image": "./assets/images/splash-icon.png",
           "resizeMode": "contain",
-          "backgroundColor": "#0f1115"
+          "backgroundColor": "#FFFFFF",
+          "imageWidth": 220
         }
       ],
       "expo-sqlite",
@@ -48,7 +49,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Gym Tracker to pick exercise videos from your library.",
+          "photosPermission": "Allow GymTrack to pick exercise videos from your library.",
           "cameraPermission": false,
           "microphonePermission": false
         }

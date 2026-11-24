@@ -1,10 +1,10 @@
-# Gym Tracker — Technology
+# GymTrack — Technology
 
 Technical memory for AI assistants and developers: how the mobile app and the backend are built,
 run, tested and shipped, plus the traps already hit. Read this before changing code.
 Product rules and features are in [BUSINESS.md](BUSINESS.md).
 
-_Last updated: 2026-11-24 · app v1.0.3 (versionCode 4)._
+_Last updated: 2026-11-24 · app v1.0.5 (versionCode 6)._
 
 ---
 
@@ -69,7 +69,7 @@ src/api/                  backend access
   legacy.ts, legacyWire.ts  one-time upload of the old on-phone SQLite DB (pre-cloud versions)
   storage.ts / storage.web.ts  kv store (native / web)
 src/db/queries.ts         typed functions for every backend endpoint (+ types: Workout, WorkoutSet, PlannedSet…)
-src/components/           ExerciseCard, SetRow, RestTimer, PlanSetsEditor, ExercisePicker, ExerciseVideos, AccountForm, ui.tsx
+src/components/           RestTimer, PlanSetsEditor, ExercisePicker, ExerciseVideos, AccountForm, WorkoutTimer, ui.tsx
 src/hooks/useScreenData.tsx  per-tab loading/error/pull-to-refresh state
 src/hooks/useRest.ts      shared rest countdown (module store + useSyncExternalStore) so it survives screen changes
 src/utils/                format (kg/lb), feedback (haptic + reportError), confirm/notify, setKind, oneRepMax, youtube, videoFiles
@@ -81,7 +81,7 @@ src/UnitContext.tsx       account settings: unit + restSeconds (stored on the se
   - `.env.production` and `.env.development` → the Cloudflare Worker URL above.
   - For backend work, switch `.env.development` to `http://localhost:4000` (commented line in the file).
 - Env vars are read when Metro starts: after changing them run `npx expo start --clear`.
-- `app.json`: name "Gym Tracker", package `com.gymtracker.app`, dark UI, portrait. Bump `expo.version` and
+- `app.json`: name "GymTrack" (renamed from "Gym Tracker" in 1.0.5; package id unchanged so updates install over old versions), package `com.gymtracker.app`, dark UI, portrait. Bump `expo.version` and
   `expo.android.versionCode` for every APK so it installs over the previous one.
 - `android/` and `ios/` are generated (CNG, git-ignored). Never edit by hand; use `app.json` / config plugins
   (`plugins/withCmakeVersion`).
@@ -99,13 +99,13 @@ npx expo lint                  # lint        — run before declaring work done
 # 1. bump version + versionCode in app.json
 npx expo prebuild --platform android --no-install     # sync android/ with app.json
 cd android && NODE_ENV=production ./gradlew assembleRelease   # ~7-10 min
-# output: android/app/build/outputs/apk/release/app-release.apk  → copied to E:\GymApp\GymTracker-<version>.apk
+# output: android/app/build/outputs/apk/release/app-release.apk  → copied to E:\GymApp\GymTrack-<version>.apk
 ```
 - Needs JDK 17 (`JAVA_HOME`) and the Android SDK (`ANDROID_HOME`); both are installed on the dev PC.
 - Signed with the **debug keystore** (fine for sideloading; Google Play needs a real release key — EAS can manage one).
 - APK ≈ 104 MB because it contains 4 ABIs (arm64-v8a, armeabi-v7a, x86, x86_64).
 - Verify a build points at the right server:
-  `unzip -p GymTracker-x.apk assets/index.android.bundle | grep -ao "https://gymtrack-backend[a-z0-9.-]*workers.dev"`.
+  `unzip -p GymTrack-x.apk assets/index.android.bundle | grep -ao "https://gymtrack-backend[a-z0-9.-]*workers.dev"`.
 
 ### App patterns to keep
 - **Every data call goes through `useApi()` + a function in `src/db/queries.ts`.** No local database.
@@ -113,9 +113,11 @@ cd android && NODE_ENV=production ./gradlew assembleRelease   # ~7-10 min
   and use the batch endpoints (`GET /workouts/:id/exercises?context=1` returns last session + records per exercise).
 - `Button` (`ui.tsx`) accepts an async `onPress`: shows a spinner, blocks double taps, reports errors. Use it.
 - Tabs use `useScreenData(load)` → `status` (`loading`/`ready`/`error`), `retry`, `refreshControl`.
-- Workout screen (`(tabs)/index.tsx`): set edits are debounced (500 ms) and flushed before finish/leave; tick/kind
-  changes are tracked in `inFlight` so Finish waits for them; optimistic delete/remove; `run()` overlay for start/finish/discard;
-  ticking the last set of an exercise scrolls to the next unfinished one and starts the rest timer.
+- Workout tab while a workout is active (`(tabs)/index.tsx`): an overview list (`ExerciseRow`) with "Start training";
+  no set editing there. `run()` shows an overlay for start/finish/discard; removing an exercise is optimistic.
+- Training screen (`train/[id].tsx`): set edits are debounced (500 ms) and flushed before navigating; tick/kind changes
+  are tracked in `inFlight`; it loads the active workout (`?context=1`), videos and `/exercises/:id/history`
+  (first 3 = "Last 3 sessions") in parallel.
 - `PlanSetsEditor` keeps typed text in local state, saves after 700 ms, and registers a flush that runs before **Start**.
 - Starting a plan day (Workout tab or plan editor) pushes `/train/<first exercise id>`; tapping an exercise card in the
   workout list opens `/train/<id>` too (exercise history is linked from there). The training screen uses the same

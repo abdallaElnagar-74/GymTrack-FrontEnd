@@ -1,10 +1,10 @@
-# Gym Tracker — Business & Product
+# GymTrack — Business & Product
 
 Product memory for AI assistants and developers: what the app is for, what it does, the rules behind each
 feature, and what was decided. Keep these rules when changing features. Technical details are in
 [TECHNOLOGY.md](TECHNOLOGY.md).
 
-_Last updated: 2026-11-24 · current release v1.0.3._
+_Last updated: 2026-11-24 · current release v1.0.5._
 
 ---
 
@@ -30,13 +30,12 @@ under your account, so it survives a lost phone and is the same on every device.
 - **Idle:** each plan shows its **next day** (rotation: the day after the last one trained) with a big *Start* button,
   plus chips to start any other day; *Start empty workout*; progress tiles: workouts this week, week streak 🔥,
   total workouts, weight lifted this week; date of the last workout.
-- **Active workout:** live timer, totals (exercises, sets done, volume), progress bar, one card per exercise.
-  - Each set row: set label (W = warm-up, D = drop, numbers for working sets), **Last** (what you did last time:
-    weight on top, reps below), weight, reps, ✓.
-  - You must enter reps before ticking a set.
-  - Tap the set label to change its type or delete it. Personal records light up 🏆.
-  - **Ticking the last set of an exercise moves the screen to the next exercise** that still has sets to do
-    (or to *Finish workout* when everything is done).
+- **Active workout:** live timer, totals (exercises, sets done, volume), progress bar, and the **list of exercises**.
+  - The list is for overview only — **no typing here**. Each exercise shows its sets as chips
+    ("W · 10 kg × 15", "1 · 20 kg × 10", ✓ when done) and "x/y sets done"; ✕ removes it.
+  - Big **▶ Start training** button (then "Continue: <exercise>") opens the training screen on the first exercise
+    with sets left; tapping any exercise opens its training screen. All weights and reps are entered there.
+  - When every set is done the list says so and *Finish workout* becomes the main button.
   - **Rest timer** starts after every ticked set: default **1 minute**, −15 / +15 seconds, **Skip rest**; shows what's next
     ("Rest · next: Squat"); vibrates when rest is over. Length is a setting (Off, 1:00, 1:30, 2:00, 3:00), saved to the account.
   - *Finish workout*: unticked sets are removed; if nothing was ticked the workout is discarded. Shows a summary
@@ -51,6 +50,8 @@ under your account, so it survives a lost phone and is the same on every device.
 - Done → next set + rest timer. The button says what comes next: "Done · next set", "Done · next: Squat", "Done · finish workout".
 - **After the last set of an exercise it moves to the next exercise automatically**; after the last exercise it goes back
   to the workout list to tap *Finish workout*. The rest timer keeps running across these screens.
+- Under the set card: **your last 3 sessions** of this exercise (fewer if you've done it fewer times, hidden if never),
+  newest first — date, top weight, and every set as weight (kg) and reps.
 - Also: + Add set, Previous / Next exercise, All exercises (the list), History & records.
 - Tapping an exercise in the workout list opens this screen.
 
@@ -100,8 +101,9 @@ under your account, so it survives a lost phone and is the same on every device.
 | 1.0.2 | 2026-11-24 | Account required (no guest); auto-advance to next exercise; rest default 1 min + Skip; clear kg/reps history |
 | 1.0.3 | 2026-11-24 | Plan every set (type, weight, reps) before training; full exercise names; no letter tiles on exercises |
 | 1.0.4 | 2026-11-24 | Training screen: workout opens on the first exercise, one set at a time, auto-moves to the next exercise |
+| 1.0.5 | 2026-11-24 | Workout list is overview-only with "Start training"; training screen shows your last 3 sessions; GymTrack logo as app icon and splash |
 
-APKs are built locally (`E:\GymApp\GymTracker-<version>.apk`) and installed by sideloading over the previous version.
+APKs are built locally (`E:\GymApp\GymTrack-<version>.apk`) and installed by sideloading over the previous version.
 Not on Google Play yet.
 
 ## 7. Ideas not done yet

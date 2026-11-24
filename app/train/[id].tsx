@@ -11,11 +11,13 @@ import {
   addSet,
   deleteExerciseVideo,
   getActiveWorkout,
+  getExerciseHistory,
   getExerciseVideos,
   getWorkoutExercises,
   setSetDone,
   setSetKind,
   updateSet,
+  type ExerciseSession,
   type ExerciseVideo,
   type SetKind,
   type VideoSource,
@@ -28,7 +30,7 @@ import { groupColor, theme } from '@/src/theme';
 import { useUnit } from '@/src/UnitContext';
 import { notify } from '@/src/utils/confirm';
 import { haptic, reportError } from '@/src/utils/feedback';
-import { fromDisplay, toDisplay, type Unit } from '@/src/utils/format';
+import { formatShortDate, fromDisplay, toDisplay, type Unit } from '@/src/utils/format';
 import { kindInfo, kindOrdinals, setLabels } from '@/src/utils/setKind';
 import { deleteVideoFile } from '@/src/utils/videoFiles';
 
@@ -61,6 +63,8 @@ export default function TrainExercise() {
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [groups, setGroups] = useState<WorkoutExercise[]>([]);
   const [videos, setVideos] = useState<ExerciseVideo[]>([]);
+  // The last finished sessions of this exercise (newest first), at most 3.
+  const [recent, setRecent] = useState<ExerciseSession[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'missing'>('loading');
   // The set shown in the big card (null = the first set not done yet).
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -73,8 +77,9 @@ export default function TrainExercise() {
 
   const load = useCallback(async () => {
     try {
-      const [w, v] = await Promise.all([getActiveWorkout(api), getExerciseVideos(api, id)]);
+      const [w, v, h] = await Promise.all([getActiveWorkout(api), getExerciseVideos(api, id), getExerciseHistory(api, id)]);
       setVideos(v);
+      setRecent(h.slice(0, 3));
       if (!w) return setStatus('missing');
       const g = await getWorkoutExercises(api, w.id, { context: true });
       setWorkout(w);
@@ -288,6 +293,8 @@ export default function TrainExercise() {
 
         <Button title="Add set" icon="+" variant="secondary" onPress={onAddSet} style={{ marginTop: 12 }} />
 
+        <RecentSessions sessions={recent} unit={unit} />
+
         <View style={styles.navRow}>
           <Button
             title="Previous"
@@ -324,6 +331,50 @@ export default function TrainExercise() {
         </View>
       </ScrollView>
       {rest && <RestTimer rest={rest} onAdjust={restTimer.adjust} onClose={restTimer.clear} />}
+    </View>
+  );
+}
+
+/** Your last (up to) 3 finished sessions of this exercise, to see your progress while training. */
+function RecentSessions({ sessions, unit }: { sessions: ExerciseSession[]; unit: Unit }) {
+  if (!sessions.length) return null;
+  return (
+    <View style={{ marginTop: 22 }}>
+      <Text style={styles.sectionTitle}>
+        Last {sessions.length === 1 ? 'session' : `${sessions.length} sessions`}
+      </Text>
+      {sessions.map((session) => {
+        const labels = setLabels(session.sets);
+        const work = session.sets.filter((x) => x.kind !== 'warmup');
+        const top = Math.max(0, ...(work.length ? work : session.sets).map((x) => x.weight_kg));
+        return (
+          <View key={session.workoutId} style={styles.recentCard}>
+            <View style={styles.recentTop}>
+              <Text style={styles.recentDate}>{formatShortDate(session.date)}</Text>
+              <Text style={styles.recentTopW}>
+                Top {toDisplay(top, unit)} {unit}
+              </Text>
+            </View>
+            {session.sets.map((x, i) => {
+              const info = kindInfo(x.kind);
+              const special = x.kind !== 'normal';
+              return (
+                <View key={x.id} style={styles.recentRow}>
+                  <View style={[styles.recentBadge, special && { backgroundColor: info.color + '26' }]}>
+                    <Text style={[styles.recentBadgeText, special && { color: info.color }]}>{labels[i]}</Text>
+                  </View>
+                  <Text style={styles.recentVal}>
+                    {toDisplay(x.weight_kg, unit)} <Text style={styles.recentUnit}>{unit}</Text>
+                  </Text>
+                  <Text style={styles.recentVal}>
+                    {x.reps} <Text style={styles.recentUnit}>{x.reps === 1 ? 'rep' : 'reps'}</Text>
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -554,6 +605,37 @@ const styles = StyleSheet.create({
   },
   doneRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 },
   doneText: { color: theme.success, fontSize: 18, fontWeight: '800' },
+  sectionTitle: {
+    color: theme.muted,
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  recentCard: {
+    backgroundColor: theme.card,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  recentTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  recentDate: { color: theme.text, fontWeight: '800' },
+  recentTopW: { color: theme.accent, fontWeight: '700', fontSize: 13 },
+  recentRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4, gap: 10 },
+  recentBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    backgroundColor: theme.input,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recentBadgeText: { color: theme.text, fontWeight: '800', fontSize: 12 },
+  recentVal: { flex: 1, color: theme.text, fontSize: 16, fontWeight: '800' },
+  recentUnit: { color: theme.muted, fontSize: 12, fontWeight: '600' },
   navRow: { flexDirection: 'row', gap: 10, marginTop: 18 },
   linkRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 18, paddingHorizontal: 4 },
   link: { color: theme.accent, fontWeight: '700', fontSize: 14 },

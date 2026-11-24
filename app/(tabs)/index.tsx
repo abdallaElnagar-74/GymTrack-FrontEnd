@@ -1,20 +1,9 @@
-import { useCallback, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Keyboard,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  type ScrollViewInstance,
-} from 'react-native';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useFocusEffect } from 'expo-router';
-import { useApi, type Api } from '@/src/api/SessionContext';
+import { router } from 'expo-router';
+import { useApi } from '@/src/api/SessionContext';
 
-import { ExerciseCard } from '@/src/components/ExerciseCard';
 import { ExercisePicker } from '@/src/components/ExercisePicker';
 import { RestTimer } from '@/src/components/RestTimer';
 import { rest as restTimer, useRest } from '@/src/hooks/useRest';
@@ -23,7 +12,6 @@ import { useScreenData } from '@/src/hooks/useScreenData';
 import { WorkoutTimer } from '@/src/components/WorkoutTimer';
 import {
   addSet,
-  deleteSet,
   deleteWorkout,
   finishWorkout,
   getActiveWorkout,
@@ -32,27 +20,21 @@ import {
   getRoutinesFull,
   getWorkoutExercises,
   removeExerciseFromWorkout,
-  setSetDone,
-  setSetKind,
   startWorkout,
   startWorkoutFromDay,
-  updateSet,
   type DashboardStats,
   type Exercise,
-  type LastSession,
   type RoutineFull,
-  type SetKind,
   type Workout,
   type WorkoutExercise,
-  type WorkoutSet,
 } from '@/src/db/queries';
-import { theme } from '@/src/theme';
+import { groupColor, theme } from '@/src/theme';
 
 import { useUnit } from '@/src/UnitContext';
 import { confirm, notify } from '@/src/utils/confirm';
 import { haptic, reportError } from '@/src/utils/feedback';
-import { formatShortDate, toDisplay } from '@/src/utils/format';
-import { setVolume } from '@/src/utils/setKind';
+import { formatShortDate, toDisplay, type Unit } from '@/src/utils/format';
+import { kindInfo, setLabels, setVolume } from '@/src/utils/setKind';
 
 function greeting() {
   const h = new Date().getHours();
@@ -75,24 +57,9 @@ function compact(n: number) {
   return String(Math.round(n));
 }
 
-/** Weights/reps typed but not sent yet, per set id. */
-type PendingEdits = Map<string, { reps: number; weightKg: number; timer: ReturnType<typeof setTimeout> }>;
-
-function saveEdit(api: Api, pending: PendingEdits, setId: string) {
-  const e = pending.get(setId);
-  if (!e) return Promise.resolve();
-  clearTimeout(e.timer);
-  pending.delete(setId);
-  return updateSet(api, setId, e.reps, e.weightKg).catch(() => {});
-}
-
-/** Send typed weights/reps right away (before reloading, finishing, or leaving the screen). */
-const flushEdits = (api: Api, pending: PendingEdits) =>
-  Promise.all([...pending.keys()].map((id) => saveEdit(api, pending, id)));
-
 export default function WorkoutScreen() {
   const api = useApi();
-  const { unit, restSeconds } = useUnit();
+  const { unit } = useUnit();
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [groups, setGroups] = useState<WorkoutExercise[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -103,20 +70,7 @@ export default function WorkoutScreen() {
   const rest = useRest();
   // Blocks the screen with a spinner while a whole-workout action runs (start, finish, discard).
   const [busy, setBusy] = useState<string | null>(null);
-  const pending = useRef<PendingEdits>(new Map());
-  // Tick / set-type changes still on their way to the server; finishing waits for them.
-  const inFlight = useRef(new Set<Promise<unknown>>());
-  // Where each exercise card (and the Finish button) sits in the list, to scroll to the next one.
-  const scrollRef = useRef<ScrollViewInstance>(null);
-  const cardY = useRef(new Map<string, number>());
-  const finishY = useRef(0);
-  const track = (p: Promise<unknown>) => {
-    const q = p.catch(reportError).finally(() => inFlight.current.delete(q));
-    inFlight.current.add(q);
-  };
-
   const load = useCallback(async () => {
-    await flushEdits(api, pending.current);
     const w = await getActiveWorkout(api);
     if (w) {
       // Sets plus each exercise's last session and records, in one request.
@@ -138,7 +92,6 @@ export default function WorkoutScreen() {
   /** Reload only the current workout's exercises (after adding / removing sets). */
   const refreshGroups = async () => {
     if (!workout) return;
-    await flushEdits(api, pending.current);
     setGroups(await getWorkoutExercises(api, workout.id, { context: true }));
   };
 
@@ -183,96 +136,6 @@ export default function WorkoutScreen() {
     }
   };
 
-  const onAddSet = async (g: WorkoutExercise, last: LastSession | null) => {
-    if (!workout) return;
-    const idx = g.sets.length;
-    const same = last?.sets[idx];
-    const prefill = same ?? g.sets[g.sets.length - 1] ?? last?.sets[last.sets.length - 1];
-    // New sets are working sets unless last session had a warm-up / drop set in this position.
-    await addSet(api, workout.id, g.exercise.id, prefill?.reps ?? 0, prefill?.weight_kg ?? 0, same?.kind ?? 'normal');
-    await refreshGroups();
-  };
-
-  const patchSet = (set: WorkoutSet, patch: Partial<WorkoutSet>) =>
-    setGroups((prev) =>
-      prev.map((g) =>
-        g.exercise.id !== set.exercise_id
-          ? g
-          : { ...g, sets: g.sets.map((s) => (s.id === set.id ? { ...s, ...patch } : s)) }
-      )
-    );
-
-  useFocusEffect(
-    useCallback(() => {
-      const edits = pending.current;
-      return () => {
-        flushEdits(api, edits);
-      };
-    }, [api])
-  );
-
-  const onChangeSet = (set: WorkoutSet, reps: number, weightKg: number) => {
-    patchSet(set, { reps, weight_kg: weightKg });
-    // Typing sends one request per keystroke otherwise (and they could arrive out of order).
-    const p = pending.current;
-    clearTimeout(p.get(set.id)?.timer);
-    p.set(set.id, { reps, weightKg, timer: setTimeout(() => saveEdit(api, p, set.id), 500) });
-  };
-
-  const onChangeKind = (set: WorkoutSet, kind: SetKind) => {
-    patchSet(set, { kind });
-    track(setSetKind(api, set.id, kind));
-  };
-
-  const onToggleDone = (set: WorkoutSet) => {
-    const done = set.done !== 1;
-    if (done && set.reps <= 0) {
-      notify('Enter reps first', 'Type how many reps you did before ticking the set.');
-      return;
-    }
-    Keyboard.dismiss();
-    haptic.tap();
-    patchSet(set, { done: done ? 1 : 0 });
-    track(setSetDone(api, set.id, done));
-
-    // Ticking the last set of an exercise moves on to the next exercise that still has sets to do.
-    const index = groups.findIndex((g) => g.exercise.id === set.exercise_id);
-    const finishedExercise = done && index >= 0 && groups[index].sets.every((s) => s.id === set.id || s.done === 1);
-    const undone = (g: WorkoutExercise) => g.sets.some((s) => s.done !== 1 && s.id !== set.id);
-    const next = finishedExercise
-      ? (groups.slice(index + 1).find(undone) ?? groups.slice(0, index).find(undone))
-      : undefined;
-    if (finishedExercise) {
-      haptic.success();
-      // After the tick re-renders, so the layout is current.
-      setTimeout(() => {
-        const y = next ? cardY.current.get(next.exercise.id) : finishY.current;
-        if (y !== undefined) scrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: true });
-      }, 150);
-    }
-
-    if (done) restTimer.start(restSeconds, finishedExercise ? (next ? next.exercise.name : 'Finish workout') : undefined);
-  };
-
-  // Removed from the screen at once; put back (by reloading) if the server says no.
-  const onDeleteSet = (set: WorkoutSet) =>
-    confirm(
-      'Delete set?',
-      'Delete this set?',
-      'Delete',
-      () => {
-        pending.current.delete(set.id);
-        setGroups((prev) => prev.map((g) => ({ ...g, sets: g.sets.filter((s) => s.id !== set.id) })));
-        deleteSet(api, set)
-          .then(refreshGroups)
-          .catch((e) => {
-            reportError(e, 'Couldn’t delete the set');
-            refreshGroups().catch(() => {});
-          });
-      },
-      { destructive: true }
-    );
-
   const onRemoveExercise = (g: WorkoutExercise) => {
     if (!workout) return;
     confirm(
@@ -292,8 +155,7 @@ export default function WorkoutScreen() {
 
   const onFinish = async () => {
     if (!workout) return;
-    Keyboard.dismiss();
-    // The screen already has every set's ticked state (changes are applied here as they're sent).
+    // Sets are ticked in the training screen, which saves everything before coming back here.
     const undone = groups.reduce((n, g) => n + g.sets.filter((s) => s.done !== 1).length, 0);
     const msg =
       undone > 0
@@ -312,7 +174,6 @@ export default function WorkoutScreen() {
       'Finish',
       () =>
         run('Saving workout…', async () => {
-          await Promise.all([flushEdits(api, pending.current), ...inFlight.current]);
           const saved = await finishWorkout(api, workout.id);
           if (saved) {
             haptic.success();
@@ -458,6 +319,9 @@ export default function WorkoutScreen() {
   const doneSets = allSets.filter((s) => s.done === 1);
   const volume = doneSets.reduce((b, s) => b + setVolume(s), 0);
   const progress = allSets.length ? doneSets.length / allSets.length : 0;
+  // The exercise to train next: the first one with sets still to do.
+  const nextUp = groups.find((g) => g.sets.some((s) => s.done !== 1));
+  const openTraining = (exerciseId: string) => router.push({ pathname: '/train/[id]', params: { id: exerciseId } });
 
   return (
     <View style={styles.container}>
@@ -483,12 +347,20 @@ export default function WorkoutScreen() {
       </View>
 
       <ScrollView
-        ref={scrollRef}
         contentContainerStyle={[styles.scroll, rest && { paddingBottom: 140 }]}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-        automaticallyAdjustKeyboardInsets
         refreshControl={refreshControl}>
+        {nextUp && (
+          <Button
+            title={doneSets.length ? `Continue: ${nextUp.exercise.name}` : 'Start training'}
+            icon="▶"
+            size="lg"
+            onPress={() => openTraining(nextUp.exercise.id)}
+            style={{ marginBottom: 14 }}
+          />
+        )}
+        {groups.length > 0 && !nextUp && (
+          <Text style={styles.allDone}>All sets done 💪 Tap “Finish workout” below to save it.</Text>
+        )}
         {groups.length === 0 && adding.length === 0 && (
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>🏋️</Text>
@@ -497,20 +369,15 @@ export default function WorkoutScreen() {
             <Button title="Add exercise" icon="+" onPress={() => setPicker(true)} style={{ marginTop: 10, minWidth: 200 }} />
           </View>
         )}
-        {groups.map((g) => (
-          <View key={g.exercise.id} onLayout={(e) => cardY.current.set(g.exercise.id, e.nativeEvent.layout.y)}>
-          <ExerciseCard
-            workoutId={workout.id}
+        {groups.map((g, i) => (
+          <ExerciseRow
+            key={g.exercise.id}
+            index={i}
             group={g}
             unit={unit}
-            onAddSet={(last) => onAddSet(g, last)}
-            onChangeSet={onChangeSet}
-            onToggleDone={onToggleDone}
-            onDeleteSet={onDeleteSet}
-            onChangeKind={onChangeKind}
+            onOpen={() => openTraining(g.exercise.id)}
             onRemove={() => onRemoveExercise(g)}
           />
-          </View>
         ))}
         {adding.map((ex) => (
           <View key={ex.id} style={styles.addingCard}>
@@ -518,20 +385,88 @@ export default function WorkoutScreen() {
             <Text style={styles.addingText}>Adding {ex.name}…</Text>
           </View>
         ))}
-        {groups.length > 0 && (
-          <Text style={styles.hint}>Tap ✓ when you finish a set · tap the set number to mark it as warm-up (W) or drop set (D)</Text>
-        )}
+        {groups.length > 0 && <Text style={styles.hint}>Tap an exercise to train it set by set.</Text>}
         {groups.length > 0 && (
           <Button title="Add exercise" icon="+" variant="ghost" onPress={() => setPicker(true)} />
         )}
-        <View onLayout={(e) => (finishY.current = e.nativeEvent.layout.y)}>
-          <Button title="Finish workout" icon="✓" size="lg" onPress={onFinish} style={{ marginTop: 24 }} />
-        </View>
+        <Button
+          title="Finish workout"
+          icon="✓"
+          size="lg"
+          variant={nextUp ? 'secondary' : 'primary'}
+          onPress={onFinish}
+          style={{ marginTop: 24 }}
+        />
         <Button title="Discard workout" variant="danger" onPress={onDiscard} style={{ marginTop: 10 }} />
       </ScrollView>
       {rest && <RestTimer rest={rest} onAdjust={restTimer.adjust} onClose={restTimer.clear} />}
       <ExercisePicker visible={picker} onClose={() => setPicker(false)} onPick={onPick} />
       {overlay}
+    </View>
+  );
+}
+
+/** One exercise of the workout: its sets at a glance; tap to open the training screen. */
+function ExerciseRow({
+  index,
+  group,
+  unit,
+  onOpen,
+  onRemove,
+}: {
+  index: number;
+  group: WorkoutExercise;
+  unit: Unit;
+  onOpen: () => void;
+  onRemove: () => void;
+}) {
+  const { exercise, sets } = group;
+  const labels = setLabels(sets);
+  const done = sets.filter((s) => s.done === 1).length;
+  const complete = sets.length > 0 && done === sets.length;
+  // The row opens the training screen; ✕ is a separate button next to it (not nested inside).
+  return (
+    <View
+      style={[styles.exRow, { borderLeftColor: groupColor(exercise.muscle_group) }, complete && styles.exRowDone]}>
+      <Pressable
+        onPress={onOpen}
+        accessibilityRole="button"
+        accessibilityLabel={`${exercise.name}, ${done} of ${sets.length} sets done. Open to train`}
+        style={({ pressed }) => [styles.exMain, pressed && { opacity: 0.75 }]}>
+      <View style={styles.exHead}>
+        <Text style={styles.exIndex}>{index + 1}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.exName} numberOfLines={2}>
+            {exercise.name}
+          </Text>
+          <Text style={[styles.exMeta, complete && { color: theme.success, fontWeight: '800' }]}>
+            {complete ? '✓ Done' : `${done}/${sets.length} sets done`} · {exercise.muscle_group}
+          </Text>
+        </View>
+        <Text style={styles.chev}>›</Text>
+      </View>
+      <View style={styles.miniChips}>
+        {sets.map((st, i) => {
+          const info = kindInfo(st.kind);
+          return (
+            <View key={st.id} style={[styles.miniChip, st.done === 1 && styles.miniChipDone]}>
+              <Text style={[styles.miniChipText, st.kind !== 'normal' && { color: info.color }]}>
+                {st.done === 1 ? '✓ ' : ''}
+                {labels[i]} · {toDisplay(st.weight_kg, unit)} {unit} × {st.reps}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+      </Pressable>
+      <Pressable
+        onPress={onRemove}
+        hitSlop={10}
+        accessibilityRole="button"
+        accessibilityLabel={`Remove ${exercise.name} from workout`}
+        style={styles.removeBtn}>
+        <Text style={styles.removeText}>✕</Text>
+      </Pressable>
     </View>
   );
 }
@@ -617,6 +552,32 @@ const styles = StyleSheet.create({
   divider: { width: 1, backgroundColor: theme.border },
   sumValue: { color: theme.text, fontSize: 20, fontWeight: '800' },
   sumLabel: { color: theme.muted, fontSize: 11, marginTop: 2 },
+  allDone: { color: theme.success, fontWeight: '800', fontSize: 15, textAlign: 'center', marginBottom: 14 },
+  exRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: theme.card,
+    borderRadius: theme.radius,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: theme.border,
+    borderLeftWidth: 4,
+  },
+  exRowDone: { borderColor: 'rgba(52,210,123,0.45)' },
+  exMain: { flex: 1 },
+  exHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  exIndex: { color: theme.faint, fontWeight: '800', fontSize: 15, width: 18, textAlign: 'center' },
+  exName: { color: theme.text, fontSize: 17, fontWeight: '800' },
+  exMeta: { color: theme.muted, fontSize: 12, marginTop: 3 },
+  removeBtn: { width: 32, height: 32, borderRadius: 10, backgroundColor: theme.cardAlt, alignItems: 'center', justifyContent: 'center' },
+  removeText: { color: theme.muted, fontWeight: '700' },
+  chev: { color: theme.faint, fontSize: 26, marginLeft: 2 },
+  miniChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10, marginLeft: 28 },
+  miniChip: { backgroundColor: theme.cardAlt, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  miniChipDone: { backgroundColor: 'rgba(52,210,123,0.14)' },
+  miniChipText: { color: theme.text, fontSize: 12, fontWeight: '700' },
   hint: { color: theme.faint, fontSize: 12, textAlign: 'center', marginBottom: 12 },
   empty: { alignItems: 'center', paddingVertical: 36 },
   emptyIcon: { fontSize: 44 },
