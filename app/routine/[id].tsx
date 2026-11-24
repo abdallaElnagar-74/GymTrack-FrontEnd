@@ -1,10 +1,11 @@
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
+import { useApi } from '@/src/api/SessionContext';
+import { ApiError } from '@/src/api/http';
 
 import { ExercisePicker } from '@/src/components/ExercisePicker';
-import { Button, GroupAvatar } from '@/src/components/ui';
+import { Button, GroupAvatar, DetailState } from '@/src/components/ui';
 import {
   addDay,
   addDayExercise,
@@ -27,21 +28,25 @@ import { confirm, notify } from '@/src/utils/confirm';
 
 export default function RoutineEditor() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const db = useSQLiteContext();
+  const api = useApi();
   const [plan, setPlan] = useState<RoutineFull | null>(null);
+  const [missing, setMissing] = useState(false);
   const [name, setName] = useState('');
-  const [pickerDay, setPickerDay] = useState<number | null>(null);
+  const [pickerDay, setPickerDay] = useState<string | null>(null);
   const [newDay, setNewDay] = useState('');
 
   const load = useCallback(async () => {
     try {
-      const p = await getRoutineFull(db, Number(id));
+      const p = await getRoutineFull(api, id);
       setPlan(p);
       setName(p.name);
-    } catch {
-      setPlan(null);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) {
+        setPlan(null);
+        setMissing(true);
+      }
     }
-  }, [db, id]);
+  }, [api, id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -49,18 +54,18 @@ export default function RoutineEditor() {
     }, [load])
   );
 
-  if (!plan) return <View style={{ flex: 1, backgroundColor: theme.bg }} />;
+  if (!plan) return <DetailState missing={missing} what="plan" />;
 
   const saveName = async () => {
     if (name.trim() && name.trim() !== plan.name) {
-      await renameRoutine(db, plan.id, name);
+      await renameRoutine(api, plan.id, name);
       await load();
     }
   };
 
   const onAddDay = async () => {
     const n = newDay.trim() || `Day ${plan.days.length + 1}`;
-    await addDay(db, plan.id, n);
+    await addDay(api, plan.id, n);
     setNewDay('');
     await load();
   };
@@ -73,7 +78,7 @@ export default function RoutineEditor() {
       notify('Already added', `${ex.name} is already in ${day.name}.`);
       return;
     }
-    await addDayExercise(db, pickerDay, ex.id, 3);
+    await addDayExercise(api, pickerDay, ex.id, 3);
     await load();
   };
 
@@ -82,13 +87,13 @@ export default function RoutineEditor() {
       notify('No exercises', 'Add exercises to this day first.');
       return;
     }
-    const active = await getActiveWorkout(db);
+    const active = await getActiveWorkout(api);
     if (active) {
       notify('Workout in progress', 'Finish or discard your current workout first.');
       router.navigate('/');
       return;
     }
-    await startWorkoutFromDay(db, day.id);
+    await startWorkoutFromDay(api, day.id);
     router.navigate('/');
   };
 
@@ -98,7 +103,7 @@ export default function RoutineEditor() {
       `Delete "${plan.name}" and all its days? Your workout history is kept.`,
       'Delete',
       async () => {
-        await deleteRoutine(db, plan.id);
+        await deleteRoutine(api, plan.id);
         router.back();
       },
       { destructive: true }
@@ -125,26 +130,26 @@ export default function RoutineEditor() {
             index={i}
             isNext={d.id === plan.nextDayId}
             onRename={async (n) => {
-              await renameDay(db, d.id, n);
+              await renameDay(api, d.id, n);
               await load();
             }}
             onDelete={() =>
               confirm('Delete day?', `Delete "${d.name}" from this plan?`, 'Delete', async () => {
-                await deleteDay(db, d.id);
+                await deleteDay(api, d.id);
                 await load();
               }, { destructive: true })
             }
             onAddExercise={() => setPickerDay(d.id)}
             onRemoveExercise={async (deId) => {
-              await removeDayExercise(db, deId);
+              await removeDayExercise(api, deId);
               await load();
             }}
             onSets={async (deId, sets) => {
-              await setDayExerciseSets(db, deId, sets);
+              await setDayExerciseSets(api, deId, sets);
               await load();
             }}
             onMove={async (idx, dir) => {
-              await moveDayExercise(db, d, idx, dir);
+              await moveDayExercise(api, d, idx, dir);
               await load();
             }}
             onStart={() => onStart(d)}
@@ -190,8 +195,8 @@ function DayCard({
   onRename: (name: string) => void;
   onDelete: () => void;
   onAddExercise: () => void;
-  onRemoveExercise: (id: number) => void;
-  onSets: (id: number, sets: number) => void;
+  onRemoveExercise: (id: string) => void;
+  onSets: (id: string, sets: number) => void;
   onMove: (index: number, dir: -1 | 1) => void;
   onStart: () => void;
 }) {

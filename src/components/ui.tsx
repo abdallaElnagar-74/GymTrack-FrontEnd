@@ -1,8 +1,10 @@
-import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { groupColor, theme } from '../theme';
+import { reportError } from '../utils/feedback';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'success' | 'ghost';
 
@@ -13,16 +15,40 @@ export function Button({
   style,
   icon,
   size = 'md',
+  disabled = false,
 }: {
   title: string;
-  onPress: () => void;
+  /** If it returns a promise, the button shows a spinner and ignores taps until it settles; errors are shown. */
+  onPress: () => void | Promise<unknown>;
   variant?: Variant;
   style?: StyleProp<ViewStyle>;
   icon?: string;
   size?: 'md' | 'lg';
+  disabled?: boolean;
 }) {
-  const fg = variant === 'primary' ? theme.onAccent : variant === 'ghost' ? theme.accent : theme.text;
-  const content = (
+  const [busy, setBusy] = useState(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  const press = () => {
+    if (busy || disabled) return;
+    const r = onPress();
+    if (r && typeof (r as Promise<unknown>).then === 'function') {
+      setBusy(true);
+      (r as Promise<unknown>).catch((e) => reportError(e)).finally(() => mounted.current && setBusy(false));
+    }
+  };
+
+  const fg =
+    variant === 'primary' ? theme.onAccent : variant === 'ghost' ? theme.accent : variant === 'danger' ? theme.danger : theme.text;
+  const content = busy ? (
+    <ActivityIndicator color={fg} />
+  ) : (
     <Text style={[styles.btnText, { color: fg }, size === 'lg' && { fontSize: 18 }]}>
       {icon ? `${icon}  ` : ''}
       {title}
@@ -31,7 +57,16 @@ export function Button({
   const h = size === 'lg' ? 58 : 50;
 
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [{ opacity: pressed ? 0.75 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] }, style]}>
+    <Pressable
+      onPress={press}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled, busy }}
+      style={({ pressed }) => [
+        { opacity: disabled ? 0.45 : pressed || busy ? 0.75 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
+        style,
+      ]}>
       {variant === 'primary' ? (
         <LinearGradient
           colors={[theme.accent, theme.accentDark]}
@@ -50,11 +85,7 @@ export function Button({
             variant === 'success' && { backgroundColor: theme.success },
             variant === 'ghost' && { borderWidth: 1.5, borderColor: theme.accent, borderStyle: 'dashed' },
           ]}>
-          {variant === 'danger' ? (
-            <Text style={[styles.btnText, { color: theme.danger }]}>{title}</Text>
-          ) : (
-            content
-          )}
+          {content}
         </View>
       )}
     </Pressable>
@@ -127,6 +158,51 @@ export function PRBadge() {
   );
 }
 
+/** Full-area spinner for the first load of a screen. */
+export function Loading({ label }: { label?: string }) {
+  return (
+    <View style={styles.center}>
+      <ActivityIndicator color={theme.accent} size="large" />
+      {label ? <Text style={styles.centerSub}>{label}</Text> : null}
+    </View>
+  );
+}
+
+/** Shown when a screen's data couldn't be loaded. */
+export function LoadError({ message, onRetry }: { message: string; onRetry: () => Promise<unknown> | void }) {
+  return (
+    <View style={styles.center}>
+      <Text style={{ fontSize: 40 }}>📡</Text>
+      <Text style={styles.centerTitle}>Couldn’t load this</Text>
+      <Text style={styles.centerSub}>{message}</Text>
+      <Button title="Try again" onPress={onRetry} variant="secondary" style={{ marginTop: 18, minWidth: 160 }} />
+    </View>
+  );
+}
+
+/** Placeholder for a detail screen: spinner while loading, a message if the item is gone. */
+export function DetailState({ missing, what }: { missing: boolean; what: string }) {
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.bg }}>
+      {missing ? (
+        <View style={styles.center}>
+          <Text style={{ fontSize: 40 }}>🔍</Text>
+          <Text style={styles.centerTitle}>This {what} no longer exists</Text>
+          <Text style={styles.centerSub}>It may have been deleted on another device.</Text>
+          <Button
+            title="Go back"
+            variant="secondary"
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+            style={{ marginTop: 18, minWidth: 160 }}
+          />
+        </View>
+      ) : (
+        <Loading />
+      )}
+    </View>
+  );
+}
+
 export function SectionTitle({ children }: { children: ReactNode }) {
   return <Text style={styles.section}>{children}</Text>;
 }
@@ -170,6 +246,9 @@ const styles = StyleSheet.create({
   pillText: { fontSize: 12, fontWeight: '700' },
   pr: { backgroundColor: 'rgba(255,200,61,0.15)', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 3 },
   prText: { color: theme.gold, fontWeight: '800', fontSize: 11 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, minHeight: 260 },
+  centerTitle: { color: theme.text, fontSize: 18, fontWeight: '800', marginTop: 10 },
+  centerSub: { color: theme.muted, fontSize: 14, marginTop: 8, textAlign: 'center', lineHeight: 20, maxWidth: 340 },
   section: {
     color: theme.muted,
     fontSize: 13,

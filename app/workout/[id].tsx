@@ -2,9 +2,9 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { confirm } from '@/src/utils/confirm';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
+import { useApi } from '@/src/api/SessionContext';
 
-import { Button, GroupAvatar, Pill, StatTile } from '@/src/components/ui';
+import { Button, GroupAvatar, Pill, StatTile, DetailState } from '@/src/components/ui';
 import {
   deleteWorkout,
   getWorkout,
@@ -19,17 +19,23 @@ import { kindInfo, setLabels, setVolume } from '@/src/utils/setKind';
 
 export default function WorkoutDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const db = useSQLiteContext();
+  const api = useApi();
   const { unit } = useUnit();
   const [workout, setWorkout] = useState<Workout | null>(null);
+  const [missing, setMissing] = useState(false);
   const [groups, setGroups] = useState<WorkoutExercise[]>([]);
 
   useFocusEffect(
     useCallback(() => {
-      const wid = Number(id);
-      getWorkout(db, wid).then(setWorkout);
-      getWorkoutExercises(db, wid).then(setGroups);
-    }, [db, id])
+      const wid = id;
+      Promise.all([getWorkout(api, wid), getWorkoutExercises(api, wid)])
+        .then(([w, g]) => {
+          setWorkout(w);
+          setGroups(g);
+          setMissing(!w);
+        })
+        .catch(() => {});
+    }, [api, id])
   );
 
   const onDelete = () =>
@@ -38,13 +44,13 @@ export default function WorkoutDetail() {
       'This cannot be undone.',
       'Delete',
       async () => {
-        await deleteWorkout(db, Number(id));
+        await deleteWorkout(api, id);
         router.back();
       },
       { destructive: true }
     );
 
-  if (!workout) return <View style={{ flex: 1, backgroundColor: theme.bg }} />;
+  if (!workout) return <DetailState missing={missing} what="workout" />;
 
   const d = new Date(workout.date);
   const sets = groups.reduce((a, g) => a + g.sets.length, 0);

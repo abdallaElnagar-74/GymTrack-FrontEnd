@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
+import { useApi } from '@/src/api/SessionContext';
 import {
   getLastSession,
   getPersonalRecords,
@@ -29,25 +29,30 @@ export function ExerciseCard({
   onToggleDone,
   onRemove,
 }: {
-  workoutId: number;
+  workoutId: string;
   group: WorkoutExercise;
   unit: Unit;
-  onAddSet: (last: LastSession | null) => void;
+  onAddSet: (last: LastSession | null) => Promise<unknown> | void;
   onChangeSet: (set: WorkoutSet, reps: number, weightKg: number) => void;
   onDeleteSet: (set: WorkoutSet) => void;
   onChangeKind: (set: WorkoutSet, kind: SetKind) => void;
   onToggleDone: (set: WorkoutSet) => void;
   onRemove: () => void;
 }) {
-  const db = useSQLiteContext();
+  const api = useApi();
   const { exercise, sets } = group;
-  const [last, setLast] = useState<LastSession | null>(null);
-  const [records, setRecords] = useState<PersonalRecords | null>(null);
+  // Normally loaded with the workout (getWorkoutExercises with `context`); fetched here only if missing.
+  const [fetchedLast, setLast] = useState<LastSession | null>(null);
+  const [fetchedRecords, setRecords] = useState<PersonalRecords | null>(null);
+  const hasContext = group.records !== undefined;
+  const last = hasContext ? (group.last ?? null) : fetchedLast;
+  const records = hasContext ? (group.records ?? null) : fetchedRecords;
 
   useEffect(() => {
-    getLastSession(db, exercise.id, workoutId).then(setLast);
-    getPersonalRecords(db, exercise.id, workoutId).then(setRecords);
-  }, [db, exercise.id, workoutId]);
+    if (hasContext) return;
+    getLastSession(api, exercise.id, workoutId).then(setLast, () => {});
+    getPersonalRecords(api, exercise.id, workoutId).then(setRecords, () => {});
+  }, [api, exercise.id, workoutId, hasContext]);
 
   const isPR = (s: WorkoutSet) =>
     s.kind !== 'warmup' &&
@@ -92,7 +97,12 @@ export function ExerciseCard({
             </View>
           </View>
         </Pressable>
-        <Pressable onPress={onRemove} hitSlop={10} style={styles.more}>
+        <Pressable
+          onPress={onRemove}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={`Remove ${exercise.name} from workout`}
+          style={styles.more}>
           <Text style={styles.moreText}>✕</Text>
         </Pressable>
       </View>

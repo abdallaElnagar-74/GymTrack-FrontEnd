@@ -1,11 +1,9 @@
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
-import { SQLiteProvider } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
-import { migrateDb } from '@/src/db/schema';
+import { SessionProvider } from '@/src/api/SessionContext';
 import { theme } from '@/src/theme';
-import { SyncProvider } from '@/src/sync/SyncContext';
 import { UnitProvider } from '@/src/UnitContext';
 
 export {
@@ -31,8 +29,7 @@ const navTheme = {
 
 export default function RootLayout() {
   return (
-    <SQLiteProvider databaseName="gymapp.db" onInit={migrateDb}>
-      <SyncProvider>
+    <SessionProvider>
       <UnitProvider>
         <ThemeProvider value={navTheme}>
           <StatusBar style="light" />
@@ -41,11 +38,10 @@ export default function RootLayout() {
             <Stack.Screen name="exercise/[id]" options={{ title: 'Exercise' }} />
             <Stack.Screen name="workout/[id]" options={{ title: 'Workout' }} />
             <Stack.Screen name="routine/[id]" options={{ title: 'Edit plan' }} />
-            <Stack.Screen name="account" options={{ title: 'Cloud sync', presentation: 'modal' }} />
+            <Stack.Screen name="account" options={{ title: 'Account', presentation: 'modal' }} />
           </Stack>
         </ThemeProvider>
       </UnitProvider>
-      </SyncProvider>
-    </SQLiteProvider>
+    </SessionProvider>
   );
 }

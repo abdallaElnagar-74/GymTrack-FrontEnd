@@ -1,28 +1,35 @@
-import type { SQLiteDatabase } from 'expo-sqlite';
-import { estimate1RM } from '../utils/oneRepMax';
+import { ApiError } from '../api/http';
+import type { Api } from '../api/SessionContext';
 import type { Unit } from '../utils/format';
 import type { PlanTemplate } from './templates';
 
+/**
+ * All app data lives in MongoDB on the backend; every function here is a request to its
+ * data API (see backend/src/data.ts). Nothing is stored on the phone.
+ */
+
 export type Exercise = {
-  id: number;
+  id: string;
   name: string;
   muscle_group: string;
   created_at: number;
 };
 
 export type Workout = {
-  id: number;
+  id: string;
   date: number;
   notes: string;
   finished_at: number | null;
   title: string;
-  day_id: number | null;
+  day_id: string | null;
 };
 
+export type SetKind = 'normal' | 'warmup' | 'drop';
+
 export type WorkoutSet = {
-  id: number;
-  workout_id: number;
-  exercise_id: number;
+  id: string;
+  workout_id: string;
+  exercise_id: string;
   set_number: number;
   reps: number;
   weight_kg: number;
@@ -31,15 +38,17 @@ export type WorkoutSet = {
   kind: SetKind;
 };
 
-export type SetKind = 'normal' | 'warmup' | 'drop';
-
 export type WorkoutExercise = {
   exercise: Exercise;
   sets: WorkoutSet[];
+  /** Only with `getWorkoutExercises(..., { context: true })`: last finished session of this exercise. */
+  last?: LastSession | null;
+  /** Only with `{ context: true }`: personal records, not counting this workout. */
+  records?: PersonalRecords;
 };
 
 export type LastSession = {
-  workoutId: number;
+  workoutId: string;
   date: number;
   sets: WorkoutSet[];
 };
@@ -51,145 +60,88 @@ export type PersonalRecords = {
   hasHistory: boolean;
 };
 
+/** `null` instead of an error when the item doesn't exist (e.g. deleted on another phone). */
+async function orNull<T>(p: Promise<T>): Promise<T | null> {
+  try {
+    return await p;
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
+  }
+}
+
+const q = (params: Record<string, string | number>) =>
+  '?' + Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join('&');
+
 // ---------- Exercises ----------
 
-export function getExercises(db: SQLiteDatabase) {
-  return db.getAllAsync<Exercise>('SELECT * FROM exercises ORDER BY muscle_group, name COLLATE NOCASE');
+export function getExercises(api: Api) {
+  return api.get<Exercise[]>('/exercises');
 }
 
-export function getExercise(db: SQLiteDatabase, id: number) {
-  return db.getFirstAsync<Exercise>('SELECT * FROM exercises WHERE id = ?', id);
+export function getExercise(api: Api, id: string) {
+  return orNull(api.get<Exercise>(`/exercises/${id}`));
 }
 
-export async function addExercise(db: SQLiteDatabase, name: string, muscleGroup: string) {
-  const r = await db.runAsync(
-    'INSERT INTO exercises (name, muscle_group, created_at) VALUES (?, ?, ?)',
-    name.trim(),
-    muscleGroup,
-    Date.now()
-  );
-  return r.lastInsertRowId;
+/** Throws ApiError 409 if an exercise with that name already exists. */
+export async function addExercise(api: Api, name: string, muscleGroup: string) {
+  const r = await api.post<{ id: string }>('/exercises', { name: name.trim(), muscle_group: muscleGroup });
+  return r.id;
 }
 
-export function updateExercise(db: SQLiteDatabase, id: number, name: string, muscleGroup: string) {
-  return db.runAsync(
-    'UPDATE exercises SET name = ?, muscle_group = ? WHERE id = ?',
-    name.trim(),
-    muscleGroup,
-    id
-  );
+export function updateExercise(api: Api, id: string, name: string, muscleGroup: string) {
+  return api.patch(`/exercises/${id}`, { name: name.trim(), muscle_group: muscleGroup });
 }
 
-export function deleteExercise(db: SQLiteDatabase, id: number) {
-  return db.runAsync('DELETE FROM exercises WHERE id = ?', id);
+/** Also deletes its logged sets, plan entries and videos. */
+export function deleteExercise(api: Api, id: string) {
+  return api.del(`/exercises/${id}`);
 }
 
 // ---------- Workouts ----------
 
-export function getActiveWorkout(db: SQLiteDatabase) {
-  return db.getFirstAsync<Workout>(
-    'SELECT * FROM workouts WHERE finished_at IS NULL ORDER BY id DESC LIMIT 1'
-  );
+export function getActiveWorkout(api: Api) {
+  return api.get<Workout | null>('/workouts/active');
 }
 
-export async function startWorkout(db: SQLiteDatabase, title = '', dayId: number | null = null) {
-  const r = await db.runAsync(
-    'INSERT INTO workouts (date, notes, title, day_id) VALUES (?, ?, ?, ?)',
-    Date.now(),
-    '',
-    title,
-    dayId
-  );
-  return r.lastInsertRowId;
+export async function startWorkout(api: Api, title = '', dayId: string | null = null) {
+  return (await api.post<{ id: string }>('/workouts', { title, day_id: dayId })).id;
 }
 
 /** Number of sets in a workout that are not ticked as done. */
-export async function countUndoneSets(db: SQLiteDatabase, workoutId: number) {
-  const r = await db.getFirstAsync<{ n: number }>(
-    'SELECT COUNT(*) AS n FROM workout_sets WHERE workout_id = ? AND done = 0',
-    workoutId
-  );
-  return r?.n ?? 0;
+export async function countUndoneSets(api: Api, workoutId: string) {
+  return (await api.get<{ count: number }>(`/workouts/${workoutId}/undone-count`)).count;
 }
 
 /** Finish: drops sets not ticked as done, renumbers, and saves. Returns false if nothing was logged. */
-export async function finishWorkout(db: SQLiteDatabase, id: number) {
-  await db.runAsync('DELETE FROM workout_sets WHERE workout_id = ? AND done = 0', id);
-  const remaining = await db.getAllAsync<{ id: number; exercise_id: number }>(
-    'SELECT id, exercise_id FROM workout_sets WHERE workout_id = ? ORDER BY exercise_id, set_number, id',
-    id
-  );
-  const counters = new Map<number, number>();
-  for (const s of remaining) {
-    const n = (counters.get(s.exercise_id) ?? 0) + 1;
-    counters.set(s.exercise_id, n);
-    await db.runAsync('UPDATE workout_sets SET set_number = ? WHERE id = ?', n, s.id);
-  }
-  const c = await db.getFirstAsync<{ n: number }>(
-    'SELECT COUNT(*) AS n FROM workout_sets WHERE workout_id = ?',
-    id
-  );
-  if (!c || c.n === 0) {
-    // Nothing logged: discard the empty workout.
-    await db.runAsync('DELETE FROM workouts WHERE id = ?', id);
-    return false;
-  }
-  await db.runAsync('UPDATE workouts SET finished_at = ? WHERE id = ?', Date.now(), id);
-  return true;
+export async function finishWorkout(api: Api, id: string) {
+  return (await api.post<{ saved: boolean }>(`/workouts/${id}/finish`)).saved;
 }
 
-export function deleteWorkout(db: SQLiteDatabase, id: number) {
-  return db.runAsync('DELETE FROM workouts WHERE id = ?', id);
+export function deleteWorkout(api: Api, id: string) {
+  return api.del(`/workouts/${id}`);
 }
 
-export function updateWorkoutNotes(db: SQLiteDatabase, id: number, notes: string) {
-  return db.runAsync('UPDATE workouts SET notes = ? WHERE id = ?', notes, id);
+export function updateWorkoutNotes(api: Api, id: string, notes: string) {
+  return api.patch(`/workouts/${id}`, { notes });
 }
 
-export function getWorkout(db: SQLiteDatabase, id: number) {
-  return db.getFirstAsync<Workout>('SELECT * FROM workouts WHERE id = ?', id);
+export function getWorkout(api: Api, id: string) {
+  return orNull(api.get<Workout>(`/workouts/${id}`));
 }
 
-/** Sets of a workout grouped by exercise, in the order the exercise was first logged. */
-export async function getWorkoutExercises(
-  db: SQLiteDatabase,
-  workoutId: number
-): Promise<WorkoutExercise[]> {
-  const sets = await db.getAllAsync<WorkoutSet>(
-    'SELECT * FROM workout_sets WHERE workout_id = ? ORDER BY created_at, id',
-    workoutId
-  );
-  const exercises = await getExercises(db);
-  const byId = new Map(exercises.map((e) => [e.id, e]));
-  const groups = new Map<number, WorkoutExercise>();
-  for (const s of sets) {
-    let g = groups.get(s.exercise_id);
-    if (!g) {
-      const ex = byId.get(s.exercise_id);
-      if (!ex) continue;
-      g = { exercise: ex, sets: [] };
-      groups.set(s.exercise_id, g);
-    }
-    g.sets.push(s);
-  }
-  for (const g of groups.values()) g.sets.sort((a, b) => a.set_number - b.set_number);
-  return [...groups.values()];
+/**
+ * Sets of a workout grouped by exercise, in the order the exercise was first logged.
+ * `context: true` also returns each exercise's last session and records (one request for the whole workout).
+ */
+export function getWorkoutExercises(api: Api, workoutId: string, { context = false } = {}) {
+  return api.get<WorkoutExercise[]>(`/workouts/${workoutId}/exercises${context ? '?context=1' : ''}`);
 }
 
 export type WorkoutSummary = Workout & { exercise_count: number; set_count: number; volume: number };
 
-export function getWorkoutSummaries(db: SQLiteDatabase) {
-  return db.getAllAsync<WorkoutSummary>(`
-    SELECT w.*,
-      COUNT(DISTINCT s.exercise_id) AS exercise_count,
-      COUNT(s.id) AS set_count,
-      COALESCE(SUM(CASE WHEN s.kind = 'warmup' THEN 0 ELSE s.reps * s.weight_kg END), 0) AS volume
-    FROM workouts w
-    LEFT JOIN workout_sets s ON s.workout_id = w.id
-    WHERE w.finished_at IS NOT NULL
-    GROUP BY w.id
-    ORDER BY w.date DESC
-  `);
+export function getWorkoutSummaries(api: Api) {
+  return api.get<WorkoutSummary[]>('/workouts/summaries');
 }
 
 export type DashboardStats = {
@@ -200,451 +152,195 @@ export type DashboardStats = {
   lastDate: number | null;
 };
 
-function startOfWeek(ts: number) {
-  const d = new Date(ts);
-  d.setHours(0, 0, 0, 0);
-  const day = (d.getDay() + 6) % 7; // Monday = 0
-  d.setDate(d.getDate() - day);
-  return d.getTime();
-}
-
-export async function getDashboardStats(db: SQLiteDatabase): Promise<DashboardStats> {
-  const rows = await db.getAllAsync<{ date: number; volume: number }>(`
-    SELECT w.date, COALESCE(SUM(CASE WHEN s.kind = 'warmup' THEN 0 ELSE s.reps * s.weight_kg END), 0) AS volume
-    FROM workouts w LEFT JOIN workout_sets s ON s.workout_id = w.id
-    WHERE w.finished_at IS NOT NULL
-    GROUP BY w.id ORDER BY w.date DESC
-  `);
-  const week = startOfWeek(Date.now());
-  const thisWeekRows = rows.filter((r) => r.date >= week);
-
-  // consecutive weeks (ending this week or last week) with at least one workout
-  const weeks = new Set(rows.map((r) => startOfWeek(r.date)));
-  const WEEK = 7 * 24 * 3600 * 1000;
-  let cursor = weeks.has(week) ? week : week - WEEK;
-  let streak = 0;
-  while (weeks.has(cursor)) {
-    streak++;
-    cursor = startOfWeek(cursor - WEEK / 2);
-  }
-
-  return {
-    total: rows.length,
-    thisWeek: thisWeekRows.length,
-    weekVolume: thisWeekRows.reduce((a, r) => a + r.volume, 0),
-    streakWeeks: streak,
-    lastDate: rows[0]?.date ?? null,
-  };
+export function getDashboardStats(api: Api) {
+  // Weeks start on Monday in the phone's time zone.
+  return api.get<DashboardStats>(`/stats/dashboard${q({ tz: new Date().getTimezoneOffset() })}`);
 }
 
 // ---------- Sets ----------
 
 export async function addSet(
-  db: SQLiteDatabase,
-  workoutId: number,
-  exerciseId: number,
+  api: Api,
+  workoutId: string,
+  exerciseId: string,
   reps: number,
   weightKg: number,
   kind: SetKind = 'normal'
 ) {
-  const n = await db.getFirstAsync<{ n: number }>(
-    'SELECT COALESCE(MAX(set_number), 0) AS n FROM workout_sets WHERE workout_id = ? AND exercise_id = ?',
-    workoutId,
-    exerciseId
-  );
-  const r = await db.runAsync(
-    'INSERT INTO workout_sets (workout_id, exercise_id, set_number, reps, weight_kg, created_at, done, kind) VALUES (?, ?, ?, ?, ?, ?, 0, ?)',
-    workoutId,
-    exerciseId,
-    (n?.n ?? 0) + 1,
+  const r = await api.post<{ id: string }>(`/workouts/${workoutId}/sets`, {
+    exercise_id: exerciseId,
     reps,
-    weightKg,
-    Date.now(),
-    kind
-  );
-  return r.lastInsertRowId;
+    weight_kg: weightKg,
+    kind,
+  });
+  return r.id;
 }
 
-export function setSetKind(db: SQLiteDatabase, id: number, kind: SetKind) {
-  return db.runAsync('UPDATE workout_sets SET kind = ? WHERE id = ?', kind, id);
+export function setSetKind(api: Api, id: string, kind: SetKind) {
+  return api.patch(`/sets/${id}`, { kind });
 }
 
-export function setSetDone(db: SQLiteDatabase, id: number, done: boolean) {
-  return db.runAsync('UPDATE workout_sets SET done = ? WHERE id = ?', done ? 1 : 0, id);
+export function setSetDone(api: Api, id: string, done: boolean) {
+  return api.patch(`/sets/${id}`, { done });
 }
 
-export function updateSet(db: SQLiteDatabase, id: number, reps: number, weightKg: number) {
-  return db.runAsync('UPDATE workout_sets SET reps = ?, weight_kg = ? WHERE id = ?', reps, weightKg, id);
+export function updateSet(api: Api, id: string, reps: number, weightKg: number) {
+  return api.patch(`/sets/${id}`, { reps, weight_kg: weightKg });
 }
 
-export async function deleteSet(db: SQLiteDatabase, set: WorkoutSet) {
-  await db.runAsync('DELETE FROM workout_sets WHERE id = ?', set.id);
-  await db.runAsync(
-    'UPDATE workout_sets SET set_number = set_number - 1 WHERE workout_id = ? AND exercise_id = ? AND set_number > ?',
-    set.workout_id,
-    set.exercise_id,
-    set.set_number
-  );
+export function deleteSet(api: Api, set: WorkoutSet) {
+  return api.del(`/sets/${set.id}`);
 }
 
-export function removeExerciseFromWorkout(db: SQLiteDatabase, workoutId: number, exerciseId: number) {
-  return db.runAsync(
-    'DELETE FROM workout_sets WHERE workout_id = ? AND exercise_id = ?',
-    workoutId,
-    exerciseId
-  );
+export function removeExerciseFromWorkout(api: Api, workoutId: string, exerciseId: string) {
+  return api.del(`/workouts/${workoutId}/exercises/${exerciseId}`);
 }
 
 // ---------- History / records ----------
 
 /** Sets from the most recent finished workout (other than `excludeWorkoutId`) that included this exercise. */
-export async function getLastSession(
-  db: SQLiteDatabase,
-  exerciseId: number,
-  excludeWorkoutId: number
-): Promise<LastSession | null> {
-  const w = await db.getFirstAsync<Workout>(
-    `SELECT w.* FROM workouts w
-     WHERE w.finished_at IS NOT NULL AND w.id != ?
-       AND EXISTS (SELECT 1 FROM workout_sets s WHERE s.workout_id = w.id AND s.exercise_id = ?)
-     ORDER BY w.date DESC LIMIT 1`,
-    excludeWorkoutId,
-    exerciseId
-  );
-  if (!w) return null;
-  const sets = await db.getAllAsync<WorkoutSet>(
-    'SELECT * FROM workout_sets WHERE workout_id = ? AND exercise_id = ? ORDER BY set_number',
-    w.id,
-    exerciseId
-  );
-  return { workoutId: w.id, date: w.date, sets };
+export function getLastSession(api: Api, exerciseId: string, excludeWorkoutId: string) {
+  return api.get<LastSession | null>(`/exercises/${exerciseId}/last-session${q({ exclude: excludeWorkoutId })}`);
 }
 
 /** Records from finished workouts only (warm-ups ignored), optionally excluding one workout. */
-export async function getPersonalRecords(
-  db: SQLiteDatabase,
-  exerciseId: number,
-  excludeWorkoutId = -1
-): Promise<PersonalRecords> {
-  const rows = await db.getAllAsync<{ reps: number; weight_kg: number }>(
-    `SELECT s.reps, s.weight_kg FROM workout_sets s
-     JOIN workouts w ON w.id = s.workout_id
-     WHERE s.exercise_id = ? AND w.finished_at IS NOT NULL AND w.id != ? AND s.kind != 'warmup'`,
-    exerciseId,
-    excludeWorkoutId
-  );
-  let maxWeight = 0;
-  let best1RM = 0;
-  let maxVolume = 0;
-  for (const r of rows) {
-    maxWeight = Math.max(maxWeight, r.weight_kg);
-    best1RM = Math.max(best1RM, estimate1RM(r.weight_kg, r.reps));
-    maxVolume = Math.max(maxVolume, r.reps * r.weight_kg);
-  }
-  return { maxWeight, best1RM, maxVolume, hasHistory: rows.length > 0 };
+export function getPersonalRecords(api: Api, exerciseId: string, excludeWorkoutId = '') {
+  return api.get<PersonalRecords>(`/exercises/${exerciseId}/records${q({ exclude: excludeWorkoutId })}`);
 }
 
 export type ExerciseSession = {
-  workoutId: number;
+  workoutId: string;
   date: number;
   sets: WorkoutSet[];
 };
 
 /** All finished sessions for an exercise, newest first. */
-export async function getExerciseHistory(
-  db: SQLiteDatabase,
-  exerciseId: number
-): Promise<ExerciseSession[]> {
-  const rows = await db.getAllAsync<WorkoutSet & { date: number }>(
-    `SELECT s.*, w.date AS date FROM workout_sets s
-     JOIN workouts w ON w.id = s.workout_id
-     WHERE s.exercise_id = ? AND w.finished_at IS NOT NULL
-     ORDER BY w.date DESC, s.set_number`,
-    exerciseId
-  );
-  const map = new Map<number, ExerciseSession>();
-  for (const r of rows) {
-    let s = map.get(r.workout_id);
-    if (!s) {
-      s = { workoutId: r.workout_id, date: r.date, sets: [] };
-      map.set(r.workout_id, s);
-    }
-    s.sets.push(r);
-  }
-  return [...map.values()];
+export function getExerciseHistory(api: Api, exerciseId: string) {
+  return api.get<ExerciseSession[]>(`/exercises/${exerciseId}/history`);
 }
 
 // ---------- Settings ----------
 
-export async function getUnit(db: SQLiteDatabase): Promise<Unit> {
-  const r = await db.getFirstAsync<{ value: string }>("SELECT value FROM settings WHERE key = 'unit'");
-  return r?.value === 'lb' ? 'lb' : 'kg';
+export type Settings = { unit: Unit; rest_seconds: number };
+
+export async function getSettings(api: Api): Promise<Settings> {
+  const s = await api.get<Partial<Settings>>('/settings');
+  return { unit: s.unit === 'lb' ? 'lb' : 'kg', rest_seconds: s.rest_seconds ?? 90 };
 }
 
-export function setUnit(db: SQLiteDatabase, unit: Unit) {
-  return db.runAsync("INSERT OR REPLACE INTO settings (key, value) VALUES ('unit', ?)", unit);
+/** Saves only the fields given. */
+export function saveSettings(api: Api, patch: Partial<Settings>) {
+  return api.put('/settings', patch);
 }
 
 // ---------- Plans (routines -> days -> exercises) ----------
 
-export type Routine = { id: number; name: string; created_at: number };
-export type RoutineDay = { id: number; routine_id: number; name: string; position: number };
+export type Routine = { id: string; name: string; created_at: number };
+export type RoutineDay = { id: string; routine_id: string; name: string; position: number };
 export type DayExercise = {
-  id: number;
-  day_id: number;
-  exercise_id: number;
+  id: string;
+  day_id: string;
+  exercise_id: string;
   position: number;
   target_sets: number;
   name: string;
   muscle_group: string;
 };
 export type DayWithExercises = RoutineDay & { exercises: DayExercise[] };
-export type RoutineFull = Routine & { days: DayWithExercises[]; nextDayId: number | null; lastDone: number | null };
+export type RoutineFull = Routine & { days: DayWithExercises[]; nextDayId: string | null; lastDone: number | null };
 
-export async function getRoutinesFull(db: SQLiteDatabase): Promise<RoutineFull[]> {
-  const routines = await db.getAllAsync<Routine>('SELECT * FROM routines ORDER BY created_at');
-  const out: RoutineFull[] = [];
-  for (const r of routines) out.push(await getRoutineFull(db, r.id, r));
-  return out;
+export function getRoutinesFull(api: Api) {
+  return api.get<RoutineFull[]>('/routines');
 }
 
-export async function getRoutineFull(db: SQLiteDatabase, id: number, r?: Routine): Promise<RoutineFull> {
-  const routine = r ?? (await db.getFirstAsync<Routine>('SELECT * FROM routines WHERE id = ?', id));
-  if (!routine) throw new Error('Plan not found');
-  const days = await db.getAllAsync<RoutineDay>(
-    'SELECT * FROM routine_days WHERE routine_id = ? ORDER BY position, id',
-    id
-  );
-  const exs = await db.getAllAsync<DayExercise>(
-    `SELECT de.*, e.name, e.muscle_group FROM routine_day_exercises de
-     JOIN exercises e ON e.id = de.exercise_id
-     JOIN routine_days d ON d.id = de.day_id
-     WHERE d.routine_id = ? ORDER BY de.position, de.id`,
-    id
-  );
-  const full = days.map((d) => ({ ...d, exercises: exs.filter((x) => x.day_id === d.id) }));
-
-  // Next day in rotation = the day after the most recently finished one.
-  const last = await db.getFirstAsync<{ day_id: number; date: number }>(
-    `SELECT w.day_id, w.date FROM workouts w JOIN routine_days d ON d.id = w.day_id
-     WHERE d.routine_id = ? AND w.finished_at IS NOT NULL ORDER BY w.date DESC LIMIT 1`,
-    id
-  );
-  let nextDayId = full[0]?.id ?? null;
-  if (last && full.length) {
-    const i = full.findIndex((d) => d.id === last.day_id);
-    if (i >= 0) nextDayId = full[(i + 1) % full.length].id;
-  }
-  return { ...routine, days: full, nextDayId, lastDone: last?.date ?? null };
+export function getRoutineFull(api: Api, id: string) {
+  return api.get<RoutineFull>(`/routines/${id}`);
 }
 
-export async function createRoutine(db: SQLiteDatabase, name: string) {
-  const r = await db.runAsync('INSERT INTO routines (name, created_at) VALUES (?, ?)', name.trim(), Date.now());
-  return r.lastInsertRowId;
+export async function createRoutine(api: Api, name: string) {
+  return (await api.post<{ id: string }>('/routines', { name: name.trim() })).id;
 }
 
-export function renameRoutine(db: SQLiteDatabase, id: number, name: string) {
-  return db.runAsync('UPDATE routines SET name = ? WHERE id = ?', name.trim(), id);
+export function renameRoutine(api: Api, id: string, name: string) {
+  return api.patch(`/routines/${id}`, { name: name.trim() });
 }
 
-export async function deleteRoutine(db: SQLiteDatabase, id: number) {
-  await db.runAsync(
-    'UPDATE workouts SET day_id = NULL WHERE day_id IN (SELECT id FROM routine_days WHERE routine_id = ?)',
-    id
-  );
-  await db.runAsync('DELETE FROM routines WHERE id = ?', id);
+/** Deletes the plan and its days; workouts done from it stay in the history. */
+export function deleteRoutine(api: Api, id: string) {
+  return api.del(`/routines/${id}`);
 }
 
-export async function addDay(db: SQLiteDatabase, routineId: number, name: string) {
-  const p = await db.getFirstAsync<{ n: number }>(
-    'SELECT COALESCE(MAX(position), -1) + 1 AS n FROM routine_days WHERE routine_id = ?',
-    routineId
-  );
-  const r = await db.runAsync(
-    'INSERT INTO routine_days (routine_id, name, position) VALUES (?, ?, ?)',
-    routineId,
-    name.trim(),
-    p?.n ?? 0
-  );
-  return r.lastInsertRowId;
+export async function addDay(api: Api, routineId: string, name: string) {
+  return (await api.post<{ id: string }>(`/routines/${routineId}/days`, { name: name.trim() })).id;
 }
 
-export function renameDay(db: SQLiteDatabase, id: number, name: string) {
-  return db.runAsync('UPDATE routine_days SET name = ? WHERE id = ?', name.trim(), id);
+export function renameDay(api: Api, id: string, name: string) {
+  return api.patch(`/days/${id}`, { name: name.trim() });
 }
 
-export async function deleteDay(db: SQLiteDatabase, id: number) {
-  await db.runAsync('UPDATE workouts SET day_id = NULL WHERE day_id = ?', id);
-  await db.runAsync('DELETE FROM routine_days WHERE id = ?', id);
+export function deleteDay(api: Api, id: string) {
+  return api.del(`/days/${id}`);
 }
 
-export async function addDayExercise(db: SQLiteDatabase, dayId: number, exerciseId: number, sets = 3) {
-  const p = await db.getFirstAsync<{ n: number }>(
-    'SELECT COALESCE(MAX(position), -1) + 1 AS n FROM routine_day_exercises WHERE day_id = ?',
-    dayId
-  );
-  await db.runAsync(
-    'INSERT INTO routine_day_exercises (day_id, exercise_id, position, target_sets) VALUES (?, ?, ?, ?)',
-    dayId,
-    exerciseId,
-    p?.n ?? 0,
-    sets
-  );
+export async function addDayExercise(api: Api, dayId: string, exerciseId: string, sets = 3) {
+  await api.post(`/days/${dayId}/exercises`, { exercise_id: exerciseId, target_sets: sets });
 }
 
-export function removeDayExercise(db: SQLiteDatabase, id: number) {
-  return db.runAsync('DELETE FROM routine_day_exercises WHERE id = ?', id);
+export function removeDayExercise(api: Api, id: string) {
+  return api.del(`/day-exercises/${id}`);
 }
 
-export function setDayExerciseSets(db: SQLiteDatabase, id: number, sets: number) {
-  return db.runAsync('UPDATE routine_day_exercises SET target_sets = ? WHERE id = ?', Math.max(1, Math.min(10, sets)), id);
+export function setDayExerciseSets(api: Api, id: string, sets: number) {
+  return api.patch(`/day-exercises/${id}`, { target_sets: Math.max(1, Math.min(10, sets)) });
 }
 
 /** Swap an exercise with its neighbour (dir -1 = up, +1 = down). */
-export async function moveDayExercise(db: SQLiteDatabase, day: DayWithExercises, index: number, dir: -1 | 1) {
+export async function moveDayExercise(api: Api, day: DayWithExercises, index: number, dir: -1 | 1) {
   const j = index + dir;
   if (j < 0 || j >= day.exercises.length) return;
   const list = [...day.exercises];
   [list[index], list[j]] = [list[j], list[index]];
-  for (let i = 0; i < list.length; i++) {
-    await db.runAsync('UPDATE routine_day_exercises SET position = ? WHERE id = ?', i, list[i].id);
-  }
-}
-
-/** Id of an existing plan with this name (case-insensitive), or null. */
-export async function findRoutineByName(db: SQLiteDatabase, name: string) {
-  const r = await db.getFirstAsync<{ id: number }>(
-    'SELECT id FROM routines WHERE trim(name) = trim(?) COLLATE NOCASE ORDER BY id LIMIT 1',
-    name
-  );
-  return r?.id ?? null;
+  await api.put(`/days/${day.id}/order`, { ids: list.map((x) => x.id) });
 }
 
 /**
  * Creates the plan with empty days (you add the exercises yourself).
  * If a plan with the template's name already exists, nothing is created and its id is returned.
  */
-export async function createRoutineFromTemplate(
-  db: SQLiteDatabase,
-  t: PlanTemplate
-): Promise<{ id: number; existed: boolean }> {
-  const existing = await findRoutineByName(db, t.name);
-  if (existing != null) return { id: existing, existed: true };
-  const rid = await createRoutine(db, t.name);
-  for (const day of t.days) await addDay(db, rid, day);
-  return { id: rid, existed: false };
+export function createRoutineFromTemplate(api: Api, t: PlanTemplate) {
+  return api.post<{ id: string; existed: boolean }>('/routines/from-template', { name: t.name, days: t.days });
 }
 
 /** Start a workout from a plan day: creates the sets, pre-filled from last time. */
-export async function startWorkoutFromDay(db: SQLiteDatabase, dayId: number) {
-  const day = await db.getFirstAsync<RoutineDay>('SELECT * FROM routine_days WHERE id = ?', dayId);
-  if (!day) throw new Error('Day not found');
-  const exs = await db.getAllAsync<DayExercise>(
-    `SELECT de.*, e.name, e.muscle_group FROM routine_day_exercises de
-     JOIN exercises e ON e.id = de.exercise_id
-     WHERE de.day_id = ? ORDER BY de.position, de.id`,
-    dayId
-  );
-  const wid = await startWorkout(db, day.name, dayId);
-  for (const ex of exs) {
-    const last = await getLastSession(db, ex.exercise_id, wid);
-    for (let i = 0; i < ex.target_sets; i++) {
-      // Same set types you picked last time (e.g. your 2 warm-ups), so you don't re-mark them every session.
-      const same = last?.sets[i];
-      const p = same ?? last?.sets.filter((s) => s.kind !== 'warmup').at(-1) ?? last?.sets.at(-1);
-      await addSet(db, wid, ex.exercise_id, p?.reps ?? 0, p?.weight_kg ?? 0, same?.kind ?? 'normal');
-    }
-  }
-  return wid;
+export async function startWorkoutFromDay(api: Api, dayId: string) {
+  return (await api.post<{ id: string }>('/workouts/from-day', { day_id: dayId })).id;
 }
 
 // ---------- Backup ----------
 
-type RoutineDayExerciseRow = Omit<DayExercise, 'name' | 'muscle_group'>;
-
 export type BackupFile = {
   app: 'gymapp';
-  version: 1 | 2;
+  version: number;
   exportedAt: number;
-  exercises: Exercise[];
-  workouts: Workout[];
-  workout_sets: WorkoutSet[];
-  routines?: Routine[];
-  routine_days?: RoutineDay[];
-  routine_day_exercises?: RoutineDayExerciseRow[];
-  exercise_videos?: ExerciseVideo[];
+  exercises: unknown[];
+  workouts: unknown[];
+  workout_sets: unknown[];
+  routines?: unknown[];
+  routine_days?: unknown[];
+  routine_day_exercises?: unknown[];
+  exercise_videos?: unknown[];
 };
 
-export async function exportAll(db: SQLiteDatabase): Promise<BackupFile> {
-  return {
-    app: 'gymapp',
-    version: 2,
-    exportedAt: Date.now(),
-    exercises: await db.getAllAsync<Exercise>('SELECT * FROM exercises'),
-    workouts: await db.getAllAsync<Workout>('SELECT * FROM workouts'),
-    workout_sets: await db.getAllAsync<WorkoutSet>('SELECT * FROM workout_sets'),
-    routines: await db.getAllAsync<Routine>('SELECT * FROM routines'),
-    routine_days: await db.getAllAsync<RoutineDay>('SELECT * FROM routine_days'),
-    routine_day_exercises: await db.getAllAsync<RoutineDayExerciseRow>('SELECT * FROM routine_day_exercises'),
-    exercise_videos: await db.getAllAsync<ExerciseVideo>(
-      'SELECT id, exercise_id, source, url, title, position, created_at FROM exercise_videos'
-    ),
-  };
+export function exportAll(api: Api) {
+  return api.get<BackupFile>('/backup');
 }
 
-export async function importAll(db: SQLiteDatabase, data: BackupFile) {
+/** Replaces ALL data in the account with the backup (older backups with numeric ids work too). */
+export async function importAll(api: Api, data: BackupFile) {
   if (data?.app !== 'gymapp' || !Array.isArray(data.exercises) || !Array.isArray(data.workouts) || !Array.isArray(data.workout_sets)) {
     throw new Error('This file is not a GymApp backup.');
   }
-  await db.withTransactionAsync(async () => {
-    await db.runAsync('DELETE FROM exercise_videos');
-    await db.runAsync('DELETE FROM routine_day_exercises');
-    await db.runAsync('DELETE FROM routine_days');
-    await db.runAsync('DELETE FROM routines');
-    await db.runAsync('DELETE FROM workout_sets');
-    await db.runAsync('DELETE FROM workouts');
-    await db.runAsync('DELETE FROM exercises');
-    for (const e of data.exercises) {
-      await db.runAsync(
-        'INSERT INTO exercises (id, name, muscle_group, created_at) VALUES (?, ?, ?, ?)',
-        e.id, e.name, e.muscle_group, e.created_at
-      );
-    }
-    for (const v of data.exercise_videos ?? []) {
-      await db.runAsync(
-        'INSERT INTO exercise_videos (id, exercise_id, source, url, title, position, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        v.id, v.exercise_id, v.source === 'file' ? 'file' : 'youtube', v.url, v.title ?? '', v.position ?? 0, v.created_at ?? Date.now()
-      );
-    }
-    for (const r of data.routines ?? []) {
-      await db.runAsync('INSERT INTO routines (id, name, created_at) VALUES (?, ?, ?)', r.id, r.name, r.created_at);
-    }
-    for (const d of data.routine_days ?? []) {
-      await db.runAsync(
-        'INSERT INTO routine_days (id, routine_id, name, position) VALUES (?, ?, ?, ?)',
-        d.id, d.routine_id, d.name, d.position
-      );
-    }
-    for (const x of data.routine_day_exercises ?? []) {
-      await db.runAsync(
-        'INSERT INTO routine_day_exercises (id, day_id, exercise_id, position, target_sets) VALUES (?, ?, ?, ?, ?)',
-        x.id, x.day_id, x.exercise_id, x.position, x.target_sets
-      );
-    }
-    for (const w of data.workouts) {
-      await db.runAsync(
-        'INSERT INTO workouts (id, date, notes, finished_at, title, day_id) VALUES (?, ?, ?, ?, ?, ?)',
-        w.id, w.date, w.notes ?? '', w.finished_at, w.title ?? '', w.day_id ?? null
-      );
-    }
-    for (const s of data.workout_sets) {
-      await db.runAsync(
-        'INSERT INTO workout_sets (id, workout_id, exercise_id, set_number, reps, weight_kg, created_at, done, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        s.id, s.workout_id, s.exercise_id, s.set_number, s.reps, s.weight_kg, s.created_at, s.done ?? 1,
-        s.kind === 'warmup' || s.kind === 'drop' ? s.kind : 'normal'
-      );
-    }
-  });
+  await api.post('/backup', data);
 }
 
 // ---------- Exercise videos ----------
@@ -652,8 +348,8 @@ export async function importAll(db: SQLiteDatabase, data: BackupFile) {
 export type VideoSource = 'youtube' | 'file';
 
 export type ExerciseVideo = {
-  id: number;
-  exercise_id: number;
+  id: string;
+  exercise_id: string;
   source: VideoSource;
   url: string;
   title: string;
@@ -661,40 +357,18 @@ export type ExerciseVideo = {
   created_at: number;
 };
 
-export function getExerciseVideos(db: SQLiteDatabase, exerciseId: number) {
-  return db.getAllAsync<ExerciseVideo>(
-    'SELECT id, exercise_id, source, url, title, position, created_at FROM exercise_videos WHERE exercise_id = ? ORDER BY position, id',
-    exerciseId
-  );
+export function getExerciseVideos(api: Api, exerciseId: string) {
+  return api.get<ExerciseVideo[]>(`/exercises/${exerciseId}/videos`);
 }
 
-export async function addExerciseVideo(
-  db: SQLiteDatabase,
-  exerciseId: number,
-  source: VideoSource,
-  url: string,
-  title = ''
-) {
-  const p = await db.getFirstAsync<{ n: number }>(
-    'SELECT COALESCE(MAX(position), -1) + 1 AS n FROM exercise_videos WHERE exercise_id = ?',
-    exerciseId
-  );
-  const r = await db.runAsync(
-    'INSERT INTO exercise_videos (exercise_id, source, url, title, position, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-    exerciseId,
-    source,
-    url,
-    title.trim(),
-    p?.n ?? 0,
-    Date.now()
-  );
-  return r.lastInsertRowId;
+export async function addExerciseVideo(api: Api, exerciseId: string, source: VideoSource, url: string, title = '') {
+  return (await api.post<{ id: string }>(`/exercises/${exerciseId}/videos`, { source, url, title: title.trim() })).id;
 }
 
-export function renameExerciseVideo(db: SQLiteDatabase, id: number, title: string) {
-  return db.runAsync('UPDATE exercise_videos SET title = ? WHERE id = ?', title.trim(), id);
+export function renameExerciseVideo(api: Api, id: string, title: string) {
+  return api.patch(`/videos/${id}`, { title: title.trim() });
 }
 
-export function deleteExerciseVideo(db: SQLiteDatabase, id: number) {
-  return db.runAsync('DELETE FROM exercise_videos WHERE id = ?', id);
+export function deleteExerciseVideo(api: Api, id: string) {
+  return api.del(`/videos/${id}`);
 }

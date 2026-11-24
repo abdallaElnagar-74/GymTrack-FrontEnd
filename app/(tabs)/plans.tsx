@@ -1,9 +1,10 @@
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { router } from 'expo-router';
+import { useApi } from '@/src/api/SessionContext';
 
-import { Button, ScreenHeader, SectionTitle } from '@/src/components/ui';
+import { Button, LoadError, Loading, ScreenHeader, SectionTitle } from '@/src/components/ui';
+import { useScreenData } from '@/src/hooks/useScreenData';
 import {
   createRoutine,
   createRoutineFromTemplate,
@@ -11,30 +12,26 @@ import {
   type RoutineFull,
 } from '@/src/db/queries';
 import { PLAN_TEMPLATES, type PlanTemplate } from '@/src/db/templates';
-import { useReloadOnSync } from '@/src/sync/SyncContext';
 import { theme } from '@/src/theme';
 import { notify } from '@/src/utils/confirm';
+import { reportError } from '@/src/utils/feedback';
 import { formatShortDate } from '@/src/utils/format';
 
 export default function PlansScreen() {
-  const db = useSQLiteContext();
+  const api = useApi();
   const [plans, setPlans] = useState<RoutineFull[]>([]);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
+  const [usingTemplate, setUsingTemplate] = useState<string | null>(null);
 
-  const load = useCallback(() => getRoutinesFull(db).then(setPlans), [db]);
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load])
-  );
-  useReloadOnSync(load);
+  const load = useCallback(() => getRoutinesFull(api).then(setPlans), [api]);
+  const { status, error, retry, refreshControl } = useScreenData(load);
 
-  const open = (id: number) => router.push({ pathname: '/routine/[id]', params: { id: String(id) } });
+  const open = (id: string) => router.push({ pathname: '/routine/[id]', params: { id } });
 
   const onCreate = async () => {
     if (!name.trim()) return;
-    const id = await createRoutine(db, name);
+    const id = await createRoutine(api, name);
     setName('');
     setCreating(false);
     open(id);
@@ -44,11 +41,19 @@ export default function PlansScreen() {
     plans.find((p) => p.name.trim().toLowerCase() === t.name.trim().toLowerCase());
 
   const onTemplate = async (t: PlanTemplate) => {
-    // Never adds a second copy: if you already have this plan, it just opens it.
-    const { id, existed } = await createRoutineFromTemplate(db, t);
-    if (existed) notify('Already added', `You already have "${t.name}". Opening it.`);
-    await load();
-    open(id);
+    if (usingTemplate) return;
+    setUsingTemplate(t.name);
+    try {
+      // Never adds a second copy: if you already have this plan, it just opens it.
+      const { id, existed } = await createRoutineFromTemplate(api, t);
+      if (existed) notify('Already added', `You already have "${t.name}". Opening it.`);
+      open(id);
+      load().catch(() => {});
+    } catch (e) {
+      reportError(e);
+    } finally {
+      setUsingTemplate(null);
+    }
   };
 
   return (
@@ -62,7 +67,16 @@ export default function PlansScreen() {
           </Pressable>
         }
       />
-      <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+      {status === 'loading' ? (
+        <Loading />
+      ) : status === 'error' ? (
+        <LoadError message={error} onRetry={retry} />
+      ) : (
+      <ScrollView
+        contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: 40 }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        refreshControl={refreshControl}>
         {creating && (
           <View style={styles.form}>
             <Text style={styles.formTitle}>New plan</Text>
@@ -73,9 +87,10 @@ export default function PlansScreen() {
               placeholder="e.g. Push Pull Legs"
               placeholderTextColor={theme.faint}
               autoFocus
-              onSubmitEditing={onCreate}
+              onSubmitEditing={() => onCreate().catch(reportError)}
+              returnKeyType="done"
             />
-            <Button title="Create plan" onPress={onCreate} />
+            <Button title="Create plan" onPress={onCreate} disabled={!name.trim()} />
           </View>
         )}
 
@@ -134,14 +149,20 @@ export default function PlansScreen() {
               </View>
               <Pressable
                 style={[styles.useBtn, have && styles.openBtn]}
+                disabled={!!usingTemplate}
                 onPress={() => (have ? open(have.id) : onTemplate(t))}>
-                <Text style={[styles.useText, have && { color: theme.text }]}>{have ? 'Open' : 'Use'}</Text>
+                {usingTemplate === t.name ? (
+                  <ActivityIndicator color={theme.onAccent} size="small" />
+                ) : (
+                  <Text style={[styles.useText, have && { color: theme.text }]}>{have ? 'Open' : 'Use'}</Text>
+                )}
               </Pressable>
             </View>
           );
         })}
         <Text style={styles.note}>Templates add the days only — you choose the exercises for each day.</Text>
       </ScrollView>
+      )}
     </View>
   );
 }

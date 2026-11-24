@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useSQLiteContext } from 'expo-sqlite';
+import { useApi } from '@/src/api/SessionContext';
 import { getExercises, type Exercise } from '../db/queries';
 import { MUSCLE_GROUPS } from '../db/seed';
 import { groupColor, theme } from '../theme';
@@ -16,7 +16,7 @@ export function ExercisePicker({
   onClose: () => void;
   onPick: (e: Exercise) => void;
 }) {
-  const db = useSQLiteContext();
+  const api = useApi();
   const insets = useSafeAreaInsets();
   const [all, setAll] = useState<Exercise[]>([]);
   const [q, setQ] = useState('');
@@ -24,9 +24,9 @@ export function ExercisePicker({
 
   useEffect(() => {
     if (visible) {
-      getExercises(db).then(setAll);
+      getExercises(api).then(setAll);
     }
-  }, [visible, db]);
+  }, [visible, api]);
 
   const list = useMemo(() => {
     const s = q.trim().toLowerCase();

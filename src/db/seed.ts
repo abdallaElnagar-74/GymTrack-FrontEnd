@@ -8,27 +8,4 @@ export const MUSCLE_GROUPS = [
   'Other',
 ] as const;
 
-export const SEED_EXERCISES: [string, string][] = [
-  ['Bench Press', 'Chest'],
-  ['Incline Dumbbell Press', 'Chest'],
-  ['Chest Fly', 'Chest'],
-  ['Push-up', 'Chest'],
-  ['Deadlift', 'Back'],
-  ['Pull-up', 'Back'],
-  ['Barbell Row', 'Back'],
-  ['Lat Pulldown', 'Back'],
-  ['Squat', 'Legs'],
-  ['Leg Press', 'Legs'],
-  ['Romanian Deadlift', 'Legs'],
-  ['Lunges', 'Legs'],
-  ['Calf Raise', 'Legs'],
-  ['Overhead Press', 'Shoulders'],
-  ['Lateral Raise', 'Shoulders'],
-  ['Face Pull', 'Shoulders'],
-  ['Barbell Curl', 'Arms'],
-  ['Hammer Curl', 'Arms'],
-  ['Triceps Pushdown', 'Arms'],
-  ['Skull Crusher', 'Arms'],
-  ['Plank', 'Core'],
-  ['Crunch', 'Core'],
-];
+// The starter exercises for new accounts are created by the server (backend/src/seed.ts).

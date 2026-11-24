@@ -2,11 +2,11 @@ import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { confirm, notify } from '@/src/utils/confirm';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
+import { useApi } from '@/src/api/SessionContext';
 import { LineChart } from 'react-native-gifted-charts';
 
 import { ExerciseVideos } from '@/src/components/ExerciseVideos';
-import { Button, GroupAvatar, Pill, SectionTitle, StatTile } from '@/src/components/ui';
+import { Button, GroupAvatar, Pill, SectionTitle, StatTile, DetailState } from '@/src/components/ui';
 import {
   addExerciseVideo,
   deleteExercise,
@@ -27,7 +27,6 @@ import { useUnit } from '@/src/UnitContext';
 import { formatSet, formatShortDate, toDisplay } from '@/src/utils/format';
 import { kindInfo } from '@/src/utils/setKind';
 import { deleteVideoFile } from '@/src/utils/videoFiles';
-import { useReloadOnSync } from '@/src/sync/SyncContext';
 
 // Heaviest set of a session, ignoring warm-ups (falls back to all sets if only warm-ups were logged).
 function topWeight(sets: { kind: string; weight_kg: number }[]) {
@@ -37,47 +36,53 @@ function topWeight(sets: { kind: string; weight_kg: number }[]) {
 
 export default function ExerciseDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const db = useSQLiteContext();
+  const api = useApi();
   const { unit } = useUnit();
   const { width } = useWindowDimensions();
   const [exercise, setExercise] = useState<Exercise | null>(null);
+  const [missing, setMissing] = useState(false);
   const [name, setName] = useState('');
   const [records, setRecords] = useState<PersonalRecords | null>(null);
   const [history, setHistory] = useState<ExerciseSession[]>([]);
   const [videos, setVideos] = useState<ExerciseVideo[]>([]);
 
   const load = useCallback(async () => {
-    const eid = Number(id);
-    const ex = await getExercise(db, eid);
+    const eid = id;
+    const [ex, rec, hist, vids] = await Promise.all([
+      getExercise(api, eid),
+      getPersonalRecords(api, eid),
+      getExerciseHistory(api, eid),
+      getExerciseVideos(api, eid),
+    ]);
     setExercise(ex);
+    setMissing(!ex);
     setName(ex?.name ?? '');
-    setRecords(await getPersonalRecords(db, eid));
-    setHistory(await getExerciseHistory(db, eid));
-    setVideos(await getExerciseVideos(db, eid));
-  }, [db, id]);
+    setRecords(rec);
+    setHistory(hist);
+    setVideos(vids);
+  }, [api, id]);
 
   useFocusEffect(
     useCallback(() => {
       load();
     }, [load])
   );
-  useReloadOnSync(load);
 
   const onAddVideo = async (source: VideoSource, url: string, title: string) => {
-    await addExerciseVideo(db, Number(id), source, url, title);
-    setVideos(await getExerciseVideos(db, Number(id)));
+    await addExerciseVideo(api, id, source, url, title);
+    setVideos(await getExerciseVideos(api, id));
   };
 
   const onDeleteVideo = async (v: ExerciseVideo) => {
-    await deleteExerciseVideo(db, v.id);
+    await deleteExerciseVideo(api, v.id);
     if (v.source === 'file') deleteVideoFile(v.url);
-    setVideos(await getExerciseVideos(db, Number(id)));
+    setVideos(await getExerciseVideos(api, id));
   };
 
   const onSaveName = async () => {
     if (!exercise || !name.trim() || name.trim() === exercise.name) return;
     try {
-      await updateExercise(db, exercise.id, name, exercise.muscle_group);
+      await updateExercise(api, exercise.id, name, exercise.muscle_group);
       await load();
     } catch {
       notify('Already exists', 'An exercise with that name already exists.');
@@ -92,14 +97,14 @@ export default function ExerciseDetail() {
       'Delete',
       async () => {
         for (const v of videos) if (v.source === 'file') deleteVideoFile(v.url);
-        await deleteExercise(db, exercise.id);
+        await deleteExercise(api, exercise.id);
         router.back();
       },
       { destructive: true }
     );
   };
 
-  if (!exercise) return <View style={{ flex: 1, backgroundColor: theme.bg }} />;
+  if (!exercise) return <DetailState missing={missing} what="exercise" />;
 
   const color = groupColor(exercise.muscle_group);
   const has = !!records?.hasHistory;

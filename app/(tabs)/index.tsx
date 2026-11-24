@@ -1,16 +1,17 @@
-import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { ActivityIndicator, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
+import { useApi, type Api } from '@/src/api/SessionContext';
 
 import { ExerciseCard } from '@/src/components/ExerciseCard';
 import { ExercisePicker } from '@/src/components/ExercisePicker';
-import { Button, ScreenHeader, StatTile } from '@/src/components/ui';
+import { RestTimer, type Rest } from '@/src/components/RestTimer';
+import { Button, LoadError, Loading, ScreenHeader, StatTile } from '@/src/components/ui';
+import { useScreenData } from '@/src/hooks/useScreenData';
 import { WorkoutTimer } from '@/src/components/WorkoutTimer';
 import {
   addSet,
-  countUndoneSets,
   deleteSet,
   deleteWorkout,
   finishWorkout,
@@ -35,9 +36,10 @@ import {
   type WorkoutSet,
 } from '@/src/db/queries';
 import { theme } from '@/src/theme';
-import { useReloadOnSync, useSync } from '@/src/sync/SyncContext';
+
 import { useUnit } from '@/src/UnitContext';
 import { confirm, notify } from '@/src/utils/confirm';
+import { haptic, reportError } from '@/src/utils/feedback';
 import { formatShortDate, toDisplay } from '@/src/utils/format';
 import { setVolume } from '@/src/utils/setKind';
 
@@ -48,57 +50,113 @@ function greeting() {
   return 'Good evening';
 }
 
+function formatDuration(ms: number) {
+  const min = Math.max(1, Math.round(ms / 60000));
+  return min >= 60 ? `${Math.floor(min / 60)}h ${min % 60}m` : `${min} min`;
+}
+
 function compact(n: number) {
   if (n >= 10000) return `${Math.round(n / 1000)}k`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
   return String(Math.round(n));
 }
 
+/** Weights/reps typed but not sent yet, per set id. */
+type PendingEdits = Map<string, { reps: number; weightKg: number; timer: ReturnType<typeof setTimeout> }>;
+
+function saveEdit(api: Api, pending: PendingEdits, setId: string) {
+  const e = pending.get(setId);
+  if (!e) return Promise.resolve();
+  clearTimeout(e.timer);
+  pending.delete(setId);
+  return updateSet(api, setId, e.reps, e.weightKg).catch(() => {});
+}
+
+/** Send typed weights/reps right away (before reloading, finishing, or leaving the screen). */
+const flushEdits = (api: Api, pending: PendingEdits) =>
+  Promise.all([...pending.keys()].map((id) => saveEdit(api, pending, id)));
+
 export default function WorkoutScreen() {
-  const db = useSQLiteContext();
-  const { unit } = useUnit();
+  const api = useApi();
+  const { unit, restSeconds } = useUnit();
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [groups, setGroups] = useState<WorkoutExercise[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [plans, setPlans] = useState<RoutineFull[]>([]);
   const [picker, setPicker] = useState(false);
+  // Exercises picked but not on the server yet (shown as placeholder cards).
+  const [adding, setAdding] = useState<Exercise[]>([]);
+  const [rest, setRest] = useState<Rest | null>(null);
+  // Blocks the screen with a spinner while a whole-workout action runs (start, finish, discard).
+  const [busy, setBusy] = useState<string | null>(null);
+  const pending = useRef<PendingEdits>(new Map());
+  // Tick / set-type changes still on their way to the server; finishing waits for them.
+  const inFlight = useRef(new Set<Promise<unknown>>());
+  const track = (p: Promise<unknown>) => {
+    const q = p.catch(reportError).finally(() => inFlight.current.delete(q));
+    inFlight.current.add(q);
+  };
 
   const load = useCallback(async () => {
-    const w = await getActiveWorkout(db);
-    setWorkout(w);
-    setGroups(w ? await getWorkoutExercises(db, w.id) : []);
-    if (!w) {
-      setStats(await getDashboardStats(db));
-      setPlans(await getRoutinesFull(db));
+    await flushEdits(api, pending.current);
+    const w = await getActiveWorkout(api);
+    if (w) {
+      // Sets plus each exercise's last session and records, in one request.
+      const g = await getWorkoutExercises(api, w.id, { context: true });
+      setWorkout(w);
+      setGroups(g);
+    } else {
+      const [s, p] = await Promise.all([getDashboardStats(api), getRoutinesFull(api)]);
+      setWorkout(null);
+      setGroups([]);
+      setRest(null);
+      setStats(s);
+      setPlans(p);
     }
-  }, [db]);
+  }, [api]);
 
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load])
-  );
-  useReloadOnSync(load);
-  const { sync } = useSync();
+  const { status, error, retry, refreshControl } = useScreenData(load);
 
-  const onStartEmpty = async () => {
-    await startWorkout(db);
-    await load();
+  /** Reload only the current workout's exercises (after adding / removing sets). */
+  const refreshGroups = async () => {
+    if (!workout) return;
+    await flushEdits(api, pending.current);
+    setGroups(await getWorkoutExercises(api, workout.id, { context: true }));
   };
 
-  const onStartDay = async (dayId: number) => {
-    await startWorkoutFromDay(db, dayId);
-    await load();
+  /** Run a whole-screen action with a spinner; errors are shown, the screen reloads either way. */
+  const run = async (label: string, fn: () => Promise<unknown>) => {
+    if (busy) return;
+    setBusy(label);
+    try {
+      await fn();
+    } catch (e) {
+      reportError(e);
+    } finally {
+      await load().catch(() => {});
+      setBusy(null);
+    }
   };
+
+  const onStartEmpty = () => run('Starting workout…', () => startWorkout(api));
+
+  const onStartDay = (dayId: string) => run('Starting workout…', () => startWorkoutFromDay(api, dayId));
 
   const onPick = async (ex: Exercise) => {
     if (!workout) return;
     setPicker(false);
-    if (groups.some((g) => g.exercise.id === ex.id)) return;
-    const last = await getLastSession(db, ex.id, workout.id);
-    const first = last?.sets[0];
-    await addSet(db, workout.id, ex.id, first?.reps ?? 0, first?.weight_kg ?? 0, first?.kind ?? 'normal');
-    await load();
+    if (groups.some((g) => g.exercise.id === ex.id) || adding.some((a) => a.id === ex.id)) return;
+    setAdding((a) => [...a, ex]);
+    try {
+      const last = await getLastSession(api, ex.id, workout.id);
+      const first = last?.sets[0];
+      await addSet(api, workout.id, ex.id, first?.reps ?? 0, first?.weight_kg ?? 0, first?.kind ?? 'normal');
+      await refreshGroups();
+    } catch (e) {
+      reportError(e, `Couldn’t add ${ex.name}`);
+    } finally {
+      setAdding((a) => a.filter((x) => x.id !== ex.id));
+    }
   };
 
   const onAddSet = async (g: WorkoutExercise, last: LastSession | null) => {
@@ -107,8 +165,8 @@ export default function WorkoutScreen() {
     const same = last?.sets[idx];
     const prefill = same ?? g.sets[g.sets.length - 1] ?? last?.sets[last.sets.length - 1];
     // New sets are working sets unless last session had a warm-up / drop set in this position.
-    await addSet(db, workout.id, g.exercise.id, prefill?.reps ?? 0, prefill?.weight_kg ?? 0, same?.kind ?? 'normal');
-    await load();
+    await addSet(api, workout.id, g.exercise.id, prefill?.reps ?? 0, prefill?.weight_kg ?? 0, same?.kind ?? 'normal');
+    await refreshGroups();
   };
 
   const patchSet = (set: WorkoutSet, patch: Partial<WorkoutSet>) =>
@@ -120,14 +178,26 @@ export default function WorkoutScreen() {
       )
     );
 
+  useFocusEffect(
+    useCallback(() => {
+      const edits = pending.current;
+      return () => {
+        flushEdits(api, edits);
+      };
+    }, [api])
+  );
+
   const onChangeSet = (set: WorkoutSet, reps: number, weightKg: number) => {
     patchSet(set, { reps, weight_kg: weightKg });
-    updateSet(db, set.id, reps, weightKg);
+    // Typing sends one request per keystroke otherwise (and they could arrive out of order).
+    const p = pending.current;
+    clearTimeout(p.get(set.id)?.timer);
+    p.set(set.id, { reps, weightKg, timer: setTimeout(() => saveEdit(api, p, set.id), 500) });
   };
 
   const onChangeKind = (set: WorkoutSet, kind: SetKind) => {
     patchSet(set, { kind });
-    setSetKind(db, set.id, kind);
+    track(setSetKind(api, set.id, kind));
   };
 
   const onToggleDone = (set: WorkoutSet) => {
@@ -136,15 +206,42 @@ export default function WorkoutScreen() {
       notify('Enter reps first', 'Type how many reps you did before ticking the set.');
       return;
     }
+    Keyboard.dismiss();
+    haptic.tap();
     patchSet(set, { done: done ? 1 : 0 });
-    setSetDone(db, set.id, done);
+    track(setSetDone(api, set.id, done));
+    if (done && restSeconds > 0) setRest({ endsAt: Date.now() + restSeconds * 1000, total: restSeconds * 1000 });
   };
 
+  const adjustRest = useCallback(
+    (delta: number) =>
+      setRest((r) => {
+        if (!r) return r;
+        const endsAt = Math.max(Date.now(), r.endsAt + delta);
+        return { endsAt, total: Math.max(r.total + delta, endsAt - Date.now(), 1) };
+      }),
+    []
+  );
+  const closeRest = useCallback(() => setRest(null), []);
+
+  // Removed from the screen at once; put back (by reloading) if the server says no.
   const onDeleteSet = (set: WorkoutSet) =>
-    confirm('Delete set?', 'Delete this set?', 'Delete', async () => {
-      await deleteSet(db, set);
-      await load();
-    }, { destructive: true });
+    confirm(
+      'Delete set?',
+      'Delete this set?',
+      'Delete',
+      () => {
+        pending.current.delete(set.id);
+        setGroups((prev) => prev.map((g) => ({ ...g, sets: g.sets.filter((s) => s.id !== set.id) })));
+        deleteSet(api, set)
+          .then(refreshGroups)
+          .catch((e) => {
+            reportError(e, 'Couldn’t delete the set');
+            refreshGroups().catch(() => {});
+          });
+      },
+      { destructive: true }
+    );
 
   const onRemoveExercise = (g: WorkoutExercise) => {
     if (!workout) return;
@@ -152,9 +249,12 @@ export default function WorkoutScreen() {
       'Remove exercise?',
       `Remove ${g.exercise.name} and its sets from this workout?`,
       'Remove',
-      async () => {
-        await removeExerciseFromWorkout(db, workout.id, g.exercise.id);
-        await load();
+      () => {
+        setGroups((prev) => prev.filter((x) => x.exercise.id !== g.exercise.id));
+        removeExerciseFromWorkout(api, workout.id, g.exercise.id).catch((e) => {
+          reportError(e, `Couldn’t remove ${g.exercise.name}`);
+          refreshGroups().catch(() => {});
+        });
       },
       { destructive: true }
     );
@@ -162,21 +262,33 @@ export default function WorkoutScreen() {
 
   const onFinish = async () => {
     if (!workout) return;
-    const undone = await countUndoneSets(db, workout.id);
+    Keyboard.dismiss();
+    // The screen already has every set's ticked state (changes are applied here as they're sent).
+    const undone = groups.reduce((n, g) => n + g.sets.filter((s) => s.done !== 1).length, 0);
     const msg =
       undone > 0
         ? `${undone} set${undone > 1 ? 's are' : ' is'} not ticked ✓ and will be removed. Save the rest to history?`
         : 'Great work! Save this workout to your history.';
+    const done = groups.flatMap((g) => g.sets).filter((s) => s.done === 1);
+    const summary = [
+      formatDuration(Date.now() - workout.date),
+      `${groups.filter((g) => g.sets.some((s) => s.done === 1)).length} exercises`,
+      `${done.length} sets`,
+      `${Math.round(toDisplay(done.reduce((v, s) => v + setVolume(s), 0), unit)).toLocaleString()} ${unit} lifted`,
+    ].join(' · ');
     confirm(
       'Finish workout?',
       msg,
       'Finish',
-      async () => {
-        const saved = await finishWorkout(db, workout.id);
-        if (!saved) notify('Nothing logged', 'No sets were ticked, so the workout was discarded.');
-        await load();
-        sync();
-      },
+      () =>
+        run('Saving workout…', async () => {
+          await Promise.all([flushEdits(api, pending.current), ...inFlight.current]);
+          const saved = await finishWorkout(api, workout.id);
+          if (saved) {
+            haptic.success();
+            notify('Workout saved 🎉', summary);
+          } else notify('Nothing logged', 'No sets were ticked, so the workout was discarded.');
+        }),
       { cancelText: 'Keep going' }
     );
   };
@@ -187,20 +299,35 @@ export default function WorkoutScreen() {
       'Discard workout?',
       'All sets in this workout will be deleted.',
       'Discard',
-      async () => {
-        await deleteWorkout(db, workout.id);
-        await load();
-      },
+      () => run('Discarding…', () => deleteWorkout(api, workout.id)),
       { destructive: true }
     );
   };
+
+  const overlay = busy ? (
+    <View style={styles.overlay} accessibilityLiveRegion="polite">
+      <View style={styles.overlayBox}>
+        <ActivityIndicator color={theme.accent} size="large" />
+        <Text style={styles.overlayText}>{busy}</Text>
+      </View>
+    </View>
+  ) : null;
+
+  if (status !== 'ready') {
+    return (
+      <View style={styles.container}>
+        <ScreenHeader subtitle={greeting()} title="Let's train 💪" />
+        {status === 'loading' ? <Loading /> : <LoadError message={error} onRetry={retry} />}
+      </View>
+    );
+  }
 
   // ---------- Idle: dashboard ----------
   if (!workout) {
     return (
       <View style={styles.container}>
         <ScreenHeader subtitle={greeting()} title="Let's train 💪" />
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView contentContainerStyle={styles.scroll} refreshControl={refreshControl}>
           {plans.map((p) => {
             const next = p.days.find((d) => d.id === p.nextDayId);
             return (
@@ -242,7 +369,13 @@ export default function WorkoutScreen() {
                     {p.days
                       .filter((d) => d.id !== p.nextDayId)
                       .map((d) => (
-                        <Pressable key={d.id} style={styles.dayChip} onPress={() => onStartDay(d.id)}>
+                        <Pressable
+                          key={d.id}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Start ${d.name}`}
+                          disabled={!!busy}
+                          style={({ pressed }) => [styles.dayChip, pressed && { opacity: 0.7 }]}
+                          onPress={() => onStartDay(d.id)}>
                           <Text style={styles.dayChipText}>▶ {d.name}</Text>
                         </Pressable>
                       ))}
@@ -285,6 +418,7 @@ export default function WorkoutScreen() {
             <Text style={styles.lastNote}>Last workout · {formatShortDate(stats.lastDate)}</Text>
           ) : null}
         </ScrollView>
+        {overlay}
       </View>
     );
   }
@@ -318,12 +452,18 @@ export default function WorkoutScreen() {
         <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        {groups.length === 0 && (
+      <ScrollView
+        contentContainerStyle={[styles.scroll, rest && { paddingBottom: 140 }]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        automaticallyAdjustKeyboardInsets
+        refreshControl={refreshControl}>
+        {groups.length === 0 && adding.length === 0 && (
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>🏋️</Text>
             <Text style={styles.emptyTitle}>No exercises yet</Text>
             <Text style={styles.emptySub}>Add your first exercise to begin logging sets.</Text>
+            <Button title="Add exercise" icon="+" onPress={() => setPicker(true)} style={{ marginTop: 10, minWidth: 200 }} />
           </View>
         )}
         {groups.map((g) => (
@@ -340,12 +480,24 @@ export default function WorkoutScreen() {
             onRemove={() => onRemoveExercise(g)}
           />
         ))}
-        <Text style={styles.hint}>Tap ✓ when you finish a set · tap the set number to mark it as warm-up (W) or drop set (D)</Text>
-        <Button title="Add exercise" icon="+" variant="ghost" onPress={() => setPicker(true)} />
+        {adding.map((ex) => (
+          <View key={ex.id} style={styles.addingCard}>
+            <ActivityIndicator color={theme.accent} />
+            <Text style={styles.addingText}>Adding {ex.name}…</Text>
+          </View>
+        ))}
+        {groups.length > 0 && (
+          <Text style={styles.hint}>Tap ✓ when you finish a set · tap the set number to mark it as warm-up (W) or drop set (D)</Text>
+        )}
+        {groups.length > 0 && (
+          <Button title="Add exercise" icon="+" variant="ghost" onPress={() => setPicker(true)} />
+        )}
         <Button title="Finish workout" icon="✓" size="lg" onPress={onFinish} style={{ marginTop: 24 }} />
         <Button title="Discard workout" variant="danger" onPress={onDiscard} style={{ marginTop: 10 }} />
       </ScrollView>
+      {rest && <RestTimer rest={rest} onAdjust={adjustRest} onClose={closeRest} />}
       <ExercisePicker visible={picker} onClose={() => setPicker(false)} onPick={onPick} />
+      {overlay}
     </View>
   );
 }
@@ -435,5 +587,39 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', paddingVertical: 36 },
   emptyIcon: { fontSize: 44 },
   emptyTitle: { color: theme.text, fontSize: 18, fontWeight: '800', marginTop: 10 },
-  emptySub: { color: theme.muted, marginTop: 4, marginBottom: 8 },
+  emptySub: { color: theme.muted, marginTop: 4, marginBottom: 8, textAlign: 'center' },
+  addingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: theme.card,
+    borderRadius: theme.radius,
+    padding: 18,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: theme.border,
+    borderStyle: 'dashed',
+  },
+  addingText: { color: theme.muted, fontSize: 15, fontWeight: '700' },
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(10,11,15,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  overlayBox: {
+    backgroundColor: theme.card,
+    borderRadius: 18,
+    paddingVertical: 22,
+    paddingHorizontal: 30,
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  overlayText: { color: theme.text, fontSize: 15, fontWeight: '700' },
 });

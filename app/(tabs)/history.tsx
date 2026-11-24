@@ -1,12 +1,12 @@
 import { useCallback, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
+import { router } from 'expo-router';
+import { useApi } from '@/src/api/SessionContext';
 
-import { ScreenHeader } from '@/src/components/ui';
+import { LoadError, Loading, ScreenHeader } from '@/src/components/ui';
+import { useScreenData } from '@/src/hooks/useScreenData';
 import { getWorkoutSummaries, type WorkoutSummary } from '@/src/db/queries';
 import { theme } from '@/src/theme';
-import { useReloadOnSync } from '@/src/sync/SyncContext';
 import { useUnit } from '@/src/UnitContext';
 import { toDisplay } from '@/src/utils/format';
 
@@ -18,22 +18,26 @@ function duration(w: WorkoutSummary) {
 }
 
 export default function HistoryScreen() {
-  const db = useSQLiteContext();
+  const api = useApi();
   const { unit } = useUnit();
   const [items, setItems] = useState<WorkoutSummary[]>([]);
 
-  const load = useCallback(() => getWorkoutSummaries(db).then(setItems), [db]);
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load])
-  );
-  useReloadOnSync(load);
+  const load = useCallback(() => getWorkoutSummaries(api).then(setItems), [api]);
+  const { status, error, retry, refreshControl } = useScreenData(load);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
-      <ScreenHeader subtitle={`${items.length} workouts`} title="History" />
+      <ScreenHeader
+        subtitle={status === 'ready' ? `${items.length} workout${items.length === 1 ? '' : 's'}` : ' '}
+        title="History"
+      />
+      {status === 'loading' ? (
+        <Loading />
+      ) : status === 'error' ? (
+        <LoadError message={error} onRetry={retry} />
+      ) : (
       <FlatList
+        refreshControl={refreshControl}
         contentContainerStyle={{ padding: 16, paddingTop: 4 }}
         data={items}
         keyExtractor={(w) => String(w.id)}
@@ -72,6 +76,7 @@ export default function HistoryScreen() {
           );
         }}
       />
+      )}
     </View>
   );
 }

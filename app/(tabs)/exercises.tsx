@@ -1,30 +1,26 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
 import { notify } from '@/src/utils/confirm';
-import { router, useFocusEffect } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
+import { router } from 'expo-router';
+import { ApiError } from '@/src/api/http';
+import { useScreenData } from '@/src/hooks/useScreenData';
+import { useApi } from '@/src/api/SessionContext';
 
-import { Button, GroupAvatar, GroupDot, ScreenHeader } from '@/src/components/ui';
+import { Button, GroupAvatar, GroupDot, LoadError, Loading, ScreenHeader } from '@/src/components/ui';
 import { addExercise, getExercises, type Exercise } from '@/src/db/queries';
 import { MUSCLE_GROUPS } from '@/src/db/seed';
-import { useReloadOnSync } from '@/src/sync/SyncContext';
 import { groupColor, theme } from '@/src/theme';
 
 export default function ExercisesScreen() {
-  const db = useSQLiteContext();
+  const api = useApi();
   const [items, setItems] = useState<Exercise[]>([]);
   const [q, setQ] = useState('');
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const [group, setGroup] = useState<string>('Chest');
 
-  const load = useCallback(() => getExercises(db).then(setItems), [db]);
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load])
-  );
-  useReloadOnSync(load);
+  const load = useCallback(() => getExercises(api).then(setItems), [api]);
+  const { status, error, retry, refreshControl } = useScreenData(load);
 
   const sections = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -40,19 +36,20 @@ export default function ExercisesScreen() {
   const onAdd = async () => {
     if (!name.trim()) return;
     try {
-      await addExercise(db, name, group);
+      await addExercise(api, name, group);
       setName('');
       setAdding(false);
       await load();
-    } catch {
-      notify('Already exists', 'An exercise with that name already exists.');
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) notify('Already exists', 'An exercise with that name already exists.');
+      else throw e; // shown by the button
     }
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
       <ScreenHeader
-        subtitle={`${items.length} exercises`}
+        subtitle={status === 'ready' ? `${items.length} exercises` : ' '}
         title="Exercises"
         right={
           <Pressable onPress={() => setAdding((a) => !a)} style={styles.addBtn}>
@@ -60,7 +57,14 @@ export default function ExercisesScreen() {
           </Pressable>
         }
       />
+      {status === 'loading' ? (
+        <Loading />
+      ) : status === 'error' ? (
+        <LoadError message={error} onRetry={retry} />
+      ) : (
       <SectionList
+        refreshControl={refreshControl}
+        keyboardDismissMode="on-drag"
         sections={sections}
         keyExtractor={(e) => String(e.id)}
         keyboardShouldPersistTaps="handled"
@@ -78,6 +82,7 @@ export default function ExercisesScreen() {
                   placeholder="e.g. Cable Crossover"
                   placeholderTextColor={theme.faint}
                   autoFocus
+                  autoCapitalize="words"
                 />
                 <View style={styles.chips}>
                   {MUSCLE_GROUPS.map((g) => {
@@ -94,7 +99,7 @@ export default function ExercisesScreen() {
                     );
                   })}
                 </View>
-                <Button title="Save exercise" onPress={onAdd} />
+                <Button title="Save exercise" onPress={onAdd} disabled={!name.trim()} />
               </View>
             )}
             <View style={styles.searchBox}>
@@ -105,7 +110,14 @@ export default function ExercisesScreen() {
                 onChangeText={setQ}
                 placeholder="Search exercises"
                 placeholderTextColor={theme.faint}
+                returnKeyType="search"
+                autoCorrect={false}
               />
+              {q ? (
+                <Pressable onPress={() => setQ('')} hitSlop={10} accessibilityLabel="Clear search">
+                  <Text style={styles.clear}>✕</Text>
+                </Pressable>
+              ) : null}
             </View>
           </View>
         }
@@ -130,8 +142,11 @@ export default function ExercisesScreen() {
             <Text style={styles.chev}>›</Text>
           </Pressable>
         )}
-        ListEmptyComponent={<Text style={styles.empty}>No exercises match “{q}”.</Text>}
+        ListEmptyComponent={
+          <Text style={styles.empty}>{q.trim() ? `No exercises match “${q}”.` : 'No exercises yet. Tap + to add one.'}</Text>
+        }
       />
+      )}
     </View>
   );
 }
@@ -191,6 +206,7 @@ const styles = StyleSheet.create({
   },
   searchIcon: { color: theme.faint, fontSize: 20, marginRight: 8 },
   search: { flex: 1, color: theme.text, minHeight: 48, fontSize: 16 },
+  clear: { color: theme.muted, fontSize: 15, fontWeight: '800', paddingHorizontal: 4 },
   secHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 22, marginBottom: 8 },
   secTitle: { color: theme.text, fontSize: 15, fontWeight: '800', flex: 1 },
   secCount: { color: theme.faint, fontSize: 13, fontWeight: '700' },
