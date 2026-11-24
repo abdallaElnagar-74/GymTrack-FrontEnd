@@ -4,7 +4,7 @@ Product memory for AI assistants and developers: what the app is for, what it do
 feature, and what was decided. Keep these rules when changing features. Technical details are in
 [TECHNOLOGY.md](TECHNOLOGY.md).
 
-_Last updated: 2026-11-24 · current release v1.0.8._
+_Last updated: 2026-11-24 · current release v1.0.9._
 
 ---
 
@@ -47,8 +47,9 @@ under your account, so it survives a lost phone and is the same on every device.
   then its sets as chips (W / 1 / 2 / D, ✓ when done) — tap any chip, or ‹ ›, to move between sets.
 - The **current set card** shows: "Set 2 of 4", its type from the plan (tap to change), what you did last time,
   big weight and reps boxes with − / + (2.5 kg or 5 lb, 1 rep), and **✓ Done**.
-- **Reps always start empty** (the planned number is a grey hint, "Goal: 10 reps"); Done asks for reps until you type them,
-  so history only holds reps you really entered. Weight starts at the planned weight. − / + on an empty box starts at the goal.
+- **Weight and reps always start empty** (the plan is a grey hint, "Goal: 25 kg × 10 reps"); Done asks for them until you type them
+  (weight may stay empty only when the plan has no weight, e.g. bodyweight),
+  so history only holds numbers you really entered. − / + on an empty box starts at the goal.
 - Done → next set + rest timer. The button says what comes next: "Done · next set", "Done · next: Squat", "Done · finish workout".
 - **After the last set of an exercise it moves to the next exercise automatically**; after the last exercise it goes back
   to the workout list to tap *Finish workout*. The rest timer keeps running across these screens.
@@ -107,6 +108,7 @@ under your account, so it survives a lost phone and is the same on every device.
 | 1.0.6 | 2026-11-24 | Full-screen rest timer after Done, with a big Skip button |
 | 1.0.7 | 2026-11-24 | Tap anywhere on the rest timer to go to the next set |
 | 1.0.8 | 2026-11-24 | Reps box always starts empty (plan shown as a hint); Done needs typed reps so history is accurate |
+| 1.0.9 | 2026-11-24 | Weight box also starts empty (plan shown as a hint); Done needs the weight unless bodyweight |
 
 APKs are built locally (`E:\GymApp\GymTrack-<version>.apk`) and installed by sideloading over the previous version.
 Not on Google Play yet.

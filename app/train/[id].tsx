@@ -405,11 +405,14 @@ function SetCard({
   onPrev?: () => void;
   onNext?: () => void;
 }) {
-  const [weight, setWeight] = useState(set.weight_kg > 0 ? String(toDisplay(set.weight_kg, unit)) : '');
-  // Today's reps start empty (the planned number is only a grey hint), so a set is never saved
-  // with reps you didn't actually type. A finished set shows what was saved.
+  // Today's weight and reps start empty (the planned numbers are only grey hints), so a set is
+  // never saved with numbers you didn't actually type. A finished set shows what was saved.
+  // The goal is fixed when the card opens, so typing doesn't change the hints.
   const done = set.done === 1;
-  const target = set.reps > 0 ? set.reps : (prev?.reps ?? 0);
+  const [target] = useState(() => (set.reps > 0 ? set.reps : (prev?.reps ?? 0)));
+  const [targetKg] = useState(() => (set.weight_kg > 0 ? set.weight_kg : (prev?.weight_kg ?? 0)));
+  const targetW = toDisplay(targetKg, unit);
+  const [weight, setWeight] = useState(done && set.weight_kg > 0 ? String(toDisplay(set.weight_kg, unit)) : '');
   const [reps, setReps] = useState(done && set.reps > 0 ? String(set.reps) : '');
   const info = kindInfo(set.kind);
   const step = unit === 'kg' ? 2.5 : 5;
@@ -420,7 +423,11 @@ function SetCard({
     onChange(rN, fromDisplay(wN, unit));
   };
   const bumpWeight = (d: number) => {
-    const v = Math.max(0, Math.round(((parseFloat(weight.replace(',', '.')) || 0) + d) * 10) / 10);
+    // From an empty box, − / + start at the planned weight.
+    const v =
+      weight === '' && targetW > 0
+        ? targetW
+        : Math.max(0, Math.round(((parseFloat(weight.replace(',', '.')) || 0) + d) * 10) / 10);
     const t = v > 0 ? String(v) : '';
     setWeight(t);
     commit(t, reps);
@@ -460,14 +467,14 @@ function SetCard({
 
       <Text style={styles.lastTime}>
         {prev ? `Last time: ${toDisplay(prev.weight_kg, unit)} ${unit} × ${prev.reps} reps` : 'First time for this set ✨'}
-        {!done && target > 0 ? `  ·  Goal: ${target} reps` : ''}
+        {!done && target > 0 ? `  ·  Goal: ${targetW > 0 ? `${targetW} ${unit} × ` : ''}${target} reps` : ''}
       </Text>
 
       <View style={styles.fields}>
         <Field
           label={`WEIGHT (${unit.toUpperCase()})`}
           value={weight}
-          placeholder={prev ? String(toDisplay(prev.weight_kg, unit)) : '0'}
+          placeholder={targetW > 0 ? String(targetW) : '0'}
           keyboardType="decimal-pad"
           onChangeText={(t) => {
             setWeight(t);
@@ -501,6 +508,11 @@ function SetCard({
           icon="✓"
           size="lg"
           onPress={() => {
+            // Weight may stay empty only for bodyweight sets (no planned weight).
+            if (weight.trim() === '' && targetKg > 0) {
+              notify('Enter the weight', 'Type the weight you used in this set, then tap Done.');
+              return;
+            }
             if (!(parseInt(reps, 10) > 0)) {
               notify('Enter your reps', 'Type how many reps you did in this set, then tap Done.');
               return;

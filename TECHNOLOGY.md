@@ -4,7 +4,7 @@ Technical memory for AI assistants and developers: how the mobile app and the ba
 run, tested and shipped, plus the traps already hit. Read this before changing code.
 Product rules and features are in [BUSINESS.md](BUSINESS.md).
 
-_Last updated: 2026-11-24 · app v1.0.8 (versionCode 9)._
+_Last updated: 2026-11-24 · app v1.0.9 (versionCode 10)._
 
 ---
 
