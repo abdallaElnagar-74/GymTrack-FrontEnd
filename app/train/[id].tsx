@@ -153,10 +153,6 @@ export default function TrainExercise() {
   };
 
   const onDone = async (set: WorkoutSet) => {
-    if (set.reps <= 0) {
-      notify('Enter reps first', 'Type how many reps you did before ticking the set.');
-      return;
-    }
     Keyboard.dismiss();
     haptic.tap();
     patchSet(set.id, { done: 1 });
@@ -410,9 +406,12 @@ function SetCard({
   onNext?: () => void;
 }) {
   const [weight, setWeight] = useState(set.weight_kg > 0 ? String(toDisplay(set.weight_kg, unit)) : '');
-  const [reps, setReps] = useState(set.reps > 0 ? String(set.reps) : '');
-  const info = kindInfo(set.kind);
+  // Today's reps start empty (the planned number is only a grey hint), so a set is never saved
+  // with reps you didn't actually type. A finished set shows what was saved.
   const done = set.done === 1;
+  const target = set.reps > 0 ? set.reps : (prev?.reps ?? 0);
+  const [reps, setReps] = useState(done && set.reps > 0 ? String(set.reps) : '');
+  const info = kindInfo(set.kind);
   const step = unit === 'kg' ? 2.5 : 5;
 
   const commit = (w: string, r: string) => {
@@ -427,7 +426,8 @@ function SetCard({
     commit(t, reps);
   };
   const bumpReps = (d: number) => {
-    const v = Math.max(0, (parseInt(reps, 10) || 0) + d);
+    // From an empty box, − / + start at the planned number.
+    const v = reps === '' && target > 0 ? target : Math.max(0, (parseInt(reps, 10) || 0) + d);
     const t = v > 0 ? String(v) : '';
     setReps(t);
     commit(weight, t);
@@ -460,6 +460,7 @@ function SetCard({
 
       <Text style={styles.lastTime}>
         {prev ? `Last time: ${toDisplay(prev.weight_kg, unit)} ${unit} × ${prev.reps} reps` : 'First time for this set ✨'}
+        {!done && target > 0 ? `  ·  Goal: ${target} reps` : ''}
       </Text>
 
       <View style={styles.fields}>
@@ -478,7 +479,7 @@ function SetCard({
         <Field
           label="REPS"
           value={reps}
-          placeholder={prev ? String(prev.reps) : '0'}
+          placeholder={target > 0 ? String(target) : '0'}
           keyboardType="number-pad"
           onChangeText={(t) => {
             setReps(t);
@@ -495,7 +496,19 @@ function SetCard({
           <Button title="Undo" variant="secondary" onPress={onUndo} style={{ minWidth: 110 }} />
         </View>
       ) : (
-        <Button title={doneLabel} icon="✓" size="lg" onPress={onDone} style={{ marginTop: 16 }} />
+        <Button
+          title={doneLabel}
+          icon="✓"
+          size="lg"
+          onPress={() => {
+            if (!(parseInt(reps, 10) > 0)) {
+              notify('Enter your reps', 'Type how many reps you did in this set, then tap Done.');
+              return;
+            }
+            onDone();
+          }}
+          style={{ marginTop: 16 }}
+        />
       )}
     </View>
   );
