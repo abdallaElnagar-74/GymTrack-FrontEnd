@@ -138,11 +138,20 @@ export default function WorkoutScreen() {
   const onFinish = async () => {
     if (!workout) return;
     // Sets are ticked in the training screen, which saves everything before coming back here.
+    // A workout is saved only when every set is done — no partial workouts. Otherwise finish
+    // the remaining sets, or discard the workout (as if you didn't train today).
     const undone = groups.reduce((n, g) => n + g.sets.filter((s) => s.done !== 1).length, 0);
-    const msg =
-      undone > 0
-        ? plural(undone, '1 set is not done ✓ and will be removed. Save the rest to history?', '{n} sets are not done ✓ and will be removed. Save the rest to history?')
-        : t('Great work! Save this workout to your history.');
+    if (undone > 0 || groups.length === 0) {
+      notify(
+        t('Sets left to do'),
+        plural(
+          undone,
+          '1 set isn’t done yet. Finish it to save the workout, or discard the workout.',
+          '{n} sets aren’t done yet. Finish them to save the workout, or discard the workout.'
+        )
+      );
+      return;
+    }
     const done = groups.flatMap((g) => g.sets).filter((s) => s.done === 1);
     const summary = [
       formatDuration(msSince(workout.date)),
@@ -150,20 +159,14 @@ export default function WorkoutScreen() {
       plural(done.length, '1 set', '{n} sets'),
       t('{n} {unit} lifted', { n: Math.round(toDisplay(done.reduce((v, s) => v + setVolume(s), 0), unit)).toLocaleString(), unit }),
     ].join(' · ');
-    confirm(
-      t('Finish workout?'),
-      msg,
-      t('Finish'),
-      () =>
-        run(t('Saving workout…'), async () => {
-          const saved = await finishWorkout(api, workout.id);
-          if (saved) {
-            haptic.success();
-            notify(t('Workout saved 🎉'), summary);
-          } else notify(t('Nothing logged'), t('No sets were done, so the workout was discarded.'));
-        }),
-      { cancelText: t('Keep going') }
-    );
+    // All done: finish straight away, no "are you sure?".
+    await run(t('Saving workout…'), async () => {
+      const saved = await finishWorkout(api, workout.id);
+      if (saved) {
+        haptic.success();
+        notify(t('Workout saved 🎉'), summary);
+      } else notify(t('Nothing logged'), t('No sets were done, so the workout was discarded.'));
+    });
   };
 
   const onDiscard = () => {

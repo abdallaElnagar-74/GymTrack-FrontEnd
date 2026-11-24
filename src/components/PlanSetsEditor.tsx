@@ -5,17 +5,34 @@ import type { PlannedSet, SetKind } from '../db/queries';
 import { isRTL, t } from '../i18n';
 import { alpha, theme } from '../theme';
 import { kindInfo, setLabels } from '../utils/setKind';
+import { parseYouTube } from '../utils/youtube';
 
 const MAX_SETS = 20;
 const NEXT_KIND: Record<SetKind, SetKind> = { normal: 'warmup', warmup: 'drop', drop: 'normal' };
 
-/** One planned set while editing: its type and an optional note (weight and reps are entered while training). */
-type Row = { kind: SetKind; note: string };
+/**
+ * One planned set while editing: its type, an optional note and, for a drop set, an optional
+ * YouTube link showing how it's done (weight and reps are entered while training).
+ */
+type Row = { kind: SetKind; note: string; link: string };
 
-const toRows = (sets: PlannedSet[]): Row[] => sets.map((s) => ({ kind: s.kind ?? 'normal', note: s.note ?? '' }));
+const toRows = (sets: PlannedSet[]): Row[] =>
+  sets.map((s) => ({ kind: s.kind ?? 'normal', note: s.note ?? '', link: s.link ?? '' }));
+
+/** Only a valid YouTube link on a drop set is saved (anything else would be refused by the server). */
+const linkToSave = (r: Row) => (r.kind === 'drop' && parseYouTube(r.link) ? r.link.trim() : '');
 
 const toSets = (rows: Row[]): PlannedSet[] =>
-  rows.map((r) => ({ kind: r.kind, reps: 0, weight_kg: 0, ...(r.note.trim() ? { note: r.note.trim() } : {}) }));
+  rows.map((r) => {
+    const link = linkToSave(r);
+    return {
+      kind: r.kind,
+      reps: 0,
+      weight_kg: 0,
+      ...(r.note.trim() ? { note: r.note.trim() } : {}),
+      ...(link ? { link } : {}),
+    };
+  });
 
 /** A save waiting for the typing to stop. */
 type Pending = { timer: ReturnType<typeof setTimeout> | null; run: (() => Promise<unknown>) | null };
@@ -71,7 +88,7 @@ export function PlanSetsEditor({
     if (rows.length >= MAX_SETS) return;
     const last = rows[rows.length - 1];
     // A new set has the same type as the last one (a working set after a warm-up), without its note.
-    update([...rows, { kind: last && last.kind !== 'warmup' ? last.kind : 'normal', note: '' }]);
+    update([...rows, { kind: last && last.kind !== 'warmup' ? last.kind : 'normal', note: '', link: '' }]);
   };
 
   return (
@@ -79,8 +96,10 @@ export function PlanSetsEditor({
       {rows.map((r, i) => {
         const info = kindInfo(r.kind);
         const special = r.kind !== 'normal';
+        const badLink = r.link.trim() !== '' && !parseYouTube(r.link);
         return (
-          <View key={i} style={styles.row}>
+          <View key={i} style={{ gap: 6 }}>
+          <View style={styles.row}>
             <Pressable
               onPress={() => change(i, { kind: NEXT_KIND[r.kind] })}
               hitSlop={4}
@@ -110,6 +129,30 @@ export function PlanSetsEditor({
               style={[styles.del, rows.length <= 1 && { opacity: 0.25 }]}>
               <Text style={styles.delText}>✕</Text>
             </Pressable>
+          </View>
+          {r.kind === 'drop' && (
+            // A drop set can link to a YouTube video showing how it's done (opened in YouTube while training).
+            // Same three columns as the set row (type · field · ✕) so it lines up in both directions.
+            <View style={styles.row}>
+              <View style={styles.linkIcon}>
+                <Text style={[styles.linkIconText, { color: info.color }]}>▶ YouTube</Text>
+              </View>
+              <TextInput
+                style={[styles.note, badLink && { borderColor: theme.danger }]}
+                value={r.link}
+                onChangeText={(v) => change(i, { link: v })}
+                placeholder={t('YouTube link (optional)')}
+                placeholderTextColor={theme.faint}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+                maxLength={300}
+                accessibilityLabel={t('YouTube link for set {n}', { n: labels[i] })}
+              />
+              <View style={styles.del} />
+            </View>
+          )}
+          {r.kind === 'drop' && badLink && <Text style={styles.linkError}>{t('That isn’t a YouTube link.')}</Text>}
           </View>
         );
       })}
@@ -163,4 +206,7 @@ const styles = StyleSheet.create({
   addBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 9, backgroundColor: alpha(theme.accent, 0.12) },
   addText: { color: theme.accent, fontWeight: '800', fontSize: 13 },
   hint: { flex: 1, color: theme.faint, fontSize: 11 },
+  linkIcon: { width: 118, height: 38, alignItems: 'center', justifyContent: 'center' },
+  linkIconText: { fontSize: 13, fontWeight: '900' },
+  linkError: { color: theme.danger, fontSize: 12, textAlign: 'center' },
 });

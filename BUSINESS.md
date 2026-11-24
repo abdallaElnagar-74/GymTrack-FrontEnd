@@ -4,7 +4,7 @@ Product memory for AI assistants and developers: what the app is for, what it do
 feature, and what was decided. Keep these rules when changing features. Technical details are in
 [TECHNOLOGY.md](TECHNOLOGY.md).
 
-_Last updated: 2026-11-24 · current release v1.2.2._
+_Last updated: 2026-11-24 · current release v1.2.3._
 
 ---
 
@@ -40,8 +40,9 @@ under your account, so it survives a lost phone and is the same on every device.
   - When every set is done the list says so and *Finish workout* becomes the main button.
   - **Rest timer** starts after every ticked set and fills the whole screen (big countdown ring, Skip button at the bottom; tapping anywhere also goes to the next set): default **1 minute**, −15 / +15 seconds, **Skip rest**; under the countdown an "Up next" card names the next set (exercise, "Set 2 of 3 · Working set") or the next exercise (name, sets left, muscle group) or "Finish workout"; sizes adapt to the screen;
     vibrates when rest is over and closes 3 s later. Length is a setting (Off, 1:00, 1:30, 2:00, 3:00), saved to the account.
-  - *Finish workout*: unticked sets are removed; if nothing was ticked the workout is discarded. Shows a summary
-    (duration · exercises · sets · weight lifted).
+  - *Finish workout* — **no partial workouts, no "are you sure?"**: when every set is done it saves straight away and
+    shows a summary (duration · exercises · sets · weight lifted). If any set is not done it does nothing except say
+    "N sets aren't done yet. Finish them to save the workout, or discard the workout." There is no "Keep going" choice.
   - *Discard workout* deletes it. Only one workout can be in progress.
 
 ### Training screen (one exercise at a time)
@@ -64,9 +65,11 @@ under your account, so it survives a lost phone and is the same on every device.
 - Done → next set + rest timer. The button says "Done · next set", or just "Done" on the last set of an exercise.
 - **After the last set of an exercise it moves to the next exercise automatically**; after the last exercise it goes back
   to the workout list to tap *Finish workout*. The rest timer keeps running across these screens.
-- **Set notes & tips** (since v1.2.0): on a warm-up or drop set the card shows a tip for that set type
-  (Warm-up: light weight, not counted · Drop set: lower the weight and keep going right after the previous set), plus
-  the set's note from the plan ("📝 drop 20%"). The rest screen's "Up next" line includes the type and note too, and the
+- **Set notes & tips** (since v1.2.0): on a warm-up or drop set the card shows a **short** label only — "Warm-up set
+  only" / "Drop set" (no long explanations; decided with the user) — plus the set's note from the plan ("📝 drop 20%").
+- **Drop-set video link** (since v1.2.3): in the plan, a drop set has an optional **YouTube link** field (only YouTube
+  links are accepted; a wrong link shows "That isn't a YouTube link." and isn't saved). While training, that set shows
+  **▶ Watch how on YouTube**, which opens the link **outside the app** (YouTube app or browser), not inside GymTrack. The rest screen's "Up next" line includes the type and note too, and the
   workout list marks sets with a note with 📝. Rest time is the same for every set type.
 - Under the set card: **your last 3 sessions** of this exercise (fewer if you've done it fewer times, hidden if never),
   newest first — date, top weight, and every set as weight (kg) and reps.
@@ -150,6 +153,7 @@ Top to bottom: **Language** (English / العربية), **Appearance** (Auto / D
 | 1.2.0 | 2026-11-24 | Plan = number of sets + type + optional note per set (weight/reps only while training); tips + notes on warm-up/drop sets; optional YouTube link or video when adding an exercise |
 | 1.2.1 | 2026-11-24 | New Weight × Reps boxes (start empty, numbers only, KG/LB switch); finished sets locked with Edit; Arabic fixes for "last time", set chips, history tables and the exercise counter |
 | 1.2.2 | 2026-11-24 | Typing "12" in weight/reps no longer turns into "2" (Android); exercises and sets are added only in the plan (no Add set / Add exercise / empty workout during training) |
+| 1.2.3 | 2026-11-24 | Finish saves at once when every set is done (no confirm); with sets left it says to finish them or discard; YouTube link on drop sets (opens in YouTube); short warm-up / drop-set labels |
 
 APKs are built locally (`E:\GymApp\GymTrack-<version>.apk`) and installed by sideloading over the previous version.
 Not on Google Play yet.

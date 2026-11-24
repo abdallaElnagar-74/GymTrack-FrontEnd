@@ -4,7 +4,7 @@ Technical memory for AI assistants and developers: how the mobile app and the ba
 run, tested and shipped, plus the traps already hit. Read this before changing code.
 Product rules and features are in [BUSINESS.md](BUSINESS.md).
 
-_Last updated: 2026-11-24 · app v1.2.2 (versionCode 19)._
+_Last updated: 2026-11-24 · app v1.2.3 (versionCode 20)._
 
 ---
 
@@ -118,13 +118,13 @@ cd android && NODE_ENV=production ./gradlew assembleRelease   # ~7-10 min
 ### App patterns to keep
 - **Every data call goes through `useApi()` + a function in `src/db/queries.ts`.** No local database.
 - **Fewer round trips matter** (each request crosses to South America): run independent requests with `Promise.all`,
-  and use the batch endpoints (`GET /workouts/:id/exercises?context=1` returns last session + records per exercise).
+  and use the batch endpoints (`GET /workouts/:id/exercises?context=`note`, `link` (from the plan, '' if none), `done: 0|1` returns last session + records per exercise).
 - `Button` (`ui.tsx`) accepts an async `onPress`: shows a spinner, blocks double taps, reports errors. Use it.
 - Tabs use `useScreenData(load)` → `status` (`loading`/`ready`/`error`), `retry`, `refreshControl`.
 - Workout tab while a workout is active (`(tabs)/index.tsx`): an overview list (`ExerciseRow`) with "Start training";
   no set editing there. `run()` shows an overlay for start/finish/discard; removing an exercise is optimistic.
 - Training screen (`train/[id].tsx`): set edits are debounced (500 ms) and flushed before navigating; tick/kind changes
-  are tracked in `inFlight`; it loads the active workout (`?context=1`), videos and `/exercises/:id/history`
+  are tracked in `inFlight`; it loads the active workout (`?context=`note`, `link` (from the plan, '' if none), `done: 0|1`), videos and `/exercises/:id/history`
   (first 3 = "Last 3 sessions") in parallel.
 - `PlanSetsEditor` keeps typed text in local state, saves after 700 ms, and registers a flush that runs before **Start**.
 - Starting a plan day (Workout tab or plan editor) pushes `/train/<first exercise id>`; tapping an exercise card in the
@@ -152,7 +152,7 @@ cd android && NODE_ENV=production ./gradlew assembleRelease   # ~7-10 min
   entry in `src/i18n/ar.ts` (missing keys fall back to English). Translate muscle groups with `t(group)`;
   never translate exercise/plan names. Server error messages are passed through `t()` too.
 - **Never hardcode colours**: use `theme.*` and `alpha(theme.x, a)`. Styles must not use `letterSpacing` in Arabic
-  (it breaks letter joining): write `letterSpacing: isRTL ? 0 : 1`. Arrows: use `<Arrow dir="forward|back" />` /
+  (it breaks letter joining): write `letterSpacing: isRTL ? 0 : `note`, `link` (from the plan, '' if none), `done: 0|1`. Arrows: use `<Arrow dir="forward|back" />` /
   `<Button arrow="back|forward">` from `ui.tsx` (an SVG chevron; never use ‹ › text: Android mirrors it in Arabic and
   `writingDirection` is iOS-only).
   Filled buttons/chips use `theme.fill` (neon lime in both modes) with `theme.onAccent` text; `theme.accent` is for
@@ -208,9 +208,9 @@ ignored by the data API), `version`. Unique index `{user_id, id}`.
 | `exercise_videos` | `exercise_id`, `source: 'youtube'\|'file'`, `url`, `title`, `position` (file videos stay on the phone) |
 | `routines` (plans) | `name`, `created_at` |
 | `routine_days` | `routine_id`, `name`, `position` |
-| `routine_day_exercises` | `day_id`, `exercise_id`, `position`, `target_sets`, **`sets: [{ kind, reps, weight_kg, note? }]`** (planned sets; the app saves reps/weight 0 — entered while training; empty note is dropped) |
+| `routine_day_exercises` | `day_id`, `exercise_id`, `position`, `target_sets`, **`sets: [{ kind, reps, weight_kg, note?, link? }]`** (planned sets; the app saves reps/weight 0 — entered while training; empty note/link is dropped; `link` must be a YouTube URL, checked by the server and the app) |
 | `workouts` | `date` (start ms), `finished_at` (null = active), `title`, `notes`, `day_id` |
-| `workout_sets` | `workout_id`, `exercise_id`, `set_number`, `reps`, `weight_kg` (always kg), `kind: normal\|warmup\|drop`, `note` (from the plan, '' if none), `done: 0\|1`, `created_at` |
+| `workout_sets` | `workout_id`, `exercise_id`, `set_number`, `reps`, `weight_kg` (always kg), `kind: normal\|warmup\|drop`, `note`, `link` (from the plan, '' if none), `done: 0\|1`, `created_at` |
 
 Weights are stored in **kg**; the app converts for lb display. Warm-ups are excluded from volume and records.
 

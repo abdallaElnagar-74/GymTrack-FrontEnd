@@ -38,6 +38,8 @@ export type WorkoutSet = {
   kind: SetKind;
   /** Note from the plan, e.g. "drop 20%" (empty if none). */
   note?: string;
+  /** YouTube link from the plan showing how to do this set (empty if none); opened in YouTube. */
+  link?: string;
 };
 
 export type WorkoutExercise = {
@@ -239,9 +241,9 @@ export function saveSettings(api: Api, patch: Partial<Settings>) {
 
 export type Routine = { id: string; name: string; created_at: number };
 export type RoutineDay = { id: string; routine_id: string; name: string; position: number };
-/** One set planned in a plan day. 0 reps / weight = use what you did last time. */
-/** A planned set: its type and an optional note; weight/reps 0 = entered while training. */
-export type PlannedSet = { kind: SetKind; reps: number; weight_kg: number; note?: string };
+
+/** A planned set: its type, an optional note and (drop sets) a YouTube link; weight/reps 0 = entered while training. */
+export type PlannedSet = { kind: SetKind; reps: number; weight_kg: number; note?: string; link?: string };
 
 export type DayExercise = {
   id: string;

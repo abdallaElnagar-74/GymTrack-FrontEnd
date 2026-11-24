@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import { useApi, type Api } from '@/src/api/SessionContext';
@@ -31,11 +31,19 @@ import { notify } from '@/src/utils/confirm';
 import { haptic, reportError } from '@/src/utils/feedback';
 import { formatShortDate, fromDisplay, toDisplay, type Unit } from '@/src/utils/format';
 import { cleanNumber, parseNumber } from '@/src/utils/number';
+import { parseYouTube } from '@/src/utils/youtube';
 import { kindInfo, kindOrdinals, setLabels } from '@/src/utils/setKind';
 import { deleteVideoFile } from '@/src/utils/videoFiles';
 import { isRTL, plural, t } from '@/src/i18n';
 
 const NEXT_KIND: Record<SetKind, SetKind> = { normal: 'warmup', warmup: 'drop', drop: 'normal' };
+
+/** Opens a set's YouTube link outside the app (YouTube app if installed, else the browser). */
+function openLink(url: string) {
+  if (!parseYouTube(url)) return;
+  const full = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+  Linking.openURL(full).catch(reportError);
+}
 
 /** Weight / reps typed but not sent yet, per set id. */
 type PendingEdits = Map<string, { reps: number; weightKg: number; timer: ReturnType<typeof setTimeout> }>;
@@ -492,16 +500,22 @@ function SetCard({
 
       {set.kind !== 'normal' || set.note ? (
         <View style={[styles.tip, { borderColor: alpha(info.color, 0.45), backgroundColor: alpha(info.color, 0.1) }]}>
+          {/* Short on purpose: just what kind of set this is. */}
           {set.kind === 'warmup' ? (
-            <Text style={[styles.tipText, { color: info.color }]}>
-              {t('Warm-up: light weight to get ready. Not counted in records or volume.')}
-            </Text>
+            <Text style={[styles.tipText, { color: info.color }]}>{t('Warm-up set only')}</Text>
           ) : set.kind === 'drop' ? (
-            <Text style={[styles.tipText, { color: info.color }]}>
-              {t('Drop set: lower the weight and keep going right after the previous set.')}
-            </Text>
+            <Text style={[styles.tipText, { color: info.color }]}>{t('Drop set')}</Text>
           ) : null}
           {set.note ? <Text style={styles.tipNote}>📝 {set.note}</Text> : null}
+          {set.link ? (
+            // Opens in the YouTube app / browser, not inside GymTrack.
+            <Pressable
+              onPress={() => openLink(set.link!)}
+              accessibilityRole="link"
+              style={({ pressed }) => [styles.ytBtn, pressed && { opacity: 0.7 }]}>
+              <Text style={styles.ytText}>▶ {t('Watch how on YouTube')}</Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
 
@@ -695,6 +709,17 @@ const styles = StyleSheet.create({
   tip: { marginTop: 12, borderWidth: 1, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, gap: 4 },
   tipText: { fontSize: 13, fontWeight: '700', textAlign: 'center', lineHeight: 19 },
   tipNote: { color: theme.text, fontSize: 15, fontWeight: '700', textAlign: 'center' },
+  ytBtn: {
+    alignSelf: 'center',
+    marginTop: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: alpha(theme.danger, 0.14),
+    borderWidth: 1,
+    borderColor: alpha(theme.danger, 0.45),
+  },
+  ytText: { color: theme.danger, fontWeight: '800', fontSize: 14 },
   fields: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 10 },
   fieldLabel: { color: theme.muted, fontSize: 12, fontWeight: '700', textAlign: 'center', marginBottom: 4 },
   times: { color: theme.muted, fontSize: 20, fontWeight: '700', marginTop: 36 },
