@@ -6,7 +6,7 @@ import { useApi } from '@/src/api/SessionContext';
 import { LineChart } from 'react-native-gifted-charts';
 
 import { ExerciseVideos } from '@/src/components/ExerciseVideos';
-import { Button, GroupAvatar, Pill, SectionTitle, StatTile, DetailState } from '@/src/components/ui';
+import { Button, Pill, SectionTitle, StatTile, DetailState } from '@/src/components/ui';
 import {
   addExerciseVideo,
   deleteExercise,
@@ -123,7 +123,6 @@ export default function ExerciseDetail() {
       <ExerciseVideos videos={videos} onAdd={onAddVideo} onDelete={onDeleteVideo} />
 
       <View style={styles.top}>
-        <GroupAvatar name={exercise.name} group={exercise.muscle_group} size={56} />
         <View style={{ flex: 1 }}>
           <TextInput
             style={styles.nameInput}
@@ -132,6 +131,10 @@ export default function ExerciseDetail() {
             onEndEditing={onSaveName}
             onBlur={onSaveName}
             returnKeyType="done"
+            // Long names wrap onto a second line instead of scrolling out of view; Enter saves.
+            multiline
+            submitBehavior="blurAndSubmit"
+            accessibilityLabel="Exercise name"
           />
           <Pill text={exercise.muscle_group} color={color} />
         </View>
@@ -229,7 +232,7 @@ export default function ExerciseDetail() {
 const styles = StyleSheet.create({
   top: {
     marginTop: 20, flexDirection: 'row', alignItems: 'center', gap: 14 },
-  nameInput: { color: theme.text, fontSize: 26, fontWeight: '800', padding: 0, marginBottom: 6 },
+  nameInput: { color: theme.text, fontSize: 26, lineHeight: 32, fontWeight: '800', padding: 0, marginBottom: 6 },
   recRow: { flexDirection: 'row', gap: 10 },
   chart: {
     backgroundColor: theme.card,

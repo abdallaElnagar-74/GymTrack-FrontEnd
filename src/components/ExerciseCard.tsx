@@ -16,7 +16,7 @@ import { formatShortDate, toDisplay, type Unit } from '../utils/format';
 import { estimate1RM } from '../utils/oneRepMax';
 import { SET_COLS, SetRow } from './SetRow';
 import { kindOrdinals, setLabels } from '../utils/setKind';
-import { Button, GroupAvatar, Pill } from './ui';
+import { Button, Pill } from './ui';
 
 export function ExerciseCard({
   workoutId,
@@ -79,7 +79,6 @@ export function ExerciseCard({
         <Pressable
           style={styles.titleWrap}
           onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: String(exercise.id) } })}>
-          <GroupAvatar name={exercise.name} group={exercise.muscle_group} size={40} />
           <View style={{ flex: 1 }}>
             <Text style={styles.name} numberOfLines={1}>
               {exercise.name}

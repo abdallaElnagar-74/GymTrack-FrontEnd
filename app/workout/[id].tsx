@@ -4,7 +4,7 @@ import { confirm } from '@/src/utils/confirm';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useApi } from '@/src/api/SessionContext';
 
-import { Button, GroupAvatar, Pill, StatTile, DetailState } from '@/src/components/ui';
+import { Button, GroupDot, Pill, StatTile, DetailState } from '@/src/components/ui';
 import {
   deleteWorkout,
   getWorkout,
@@ -80,7 +80,7 @@ export default function WorkoutDetail() {
             <Pressable
               style={styles.cardHeader}
               onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: String(g.exercise.id) } })}>
-              <GroupAvatar name={g.exercise.name} group={g.exercise.muscle_group} size={36} />
+              <GroupDot group={g.exercise.muscle_group} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.name}>{g.exercise.name}</Text>
                 <Pill text={g.exercise.muscle_group} color={c} />

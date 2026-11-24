@@ -125,23 +125,6 @@ export function GroupDot({ group, size = 10 }: { group: string; size?: number })
   return <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: groupColor(group) }} />;
 }
 
-export function GroupAvatar({ name, group, size = 42 }: { name: string; group: string; size?: number }) {
-  const c = groupColor(group);
-  return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size / 3,
-        backgroundColor: c + '22',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}>
-      <Text style={{ color: c, fontWeight: '800', fontSize: size * 0.4 }}>{name.charAt(0).toUpperCase()}</Text>
-    </View>
-  );
-}
-
 export function Pill({ text, color = theme.muted }: { text: string; color?: string }) {
   return (
     <View style={[styles.pill, { backgroundColor: color + '1f' }]}>

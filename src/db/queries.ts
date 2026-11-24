@@ -237,12 +237,17 @@ export function saveSettings(api: Api, patch: Partial<Settings>) {
 
 export type Routine = { id: string; name: string; created_at: number };
 export type RoutineDay = { id: string; routine_id: string; name: string; position: number };
+/** One set planned in a plan day. 0 reps / weight = use what you did last time. */
+export type PlannedSet = { kind: SetKind; reps: number; weight_kg: number };
+
 export type DayExercise = {
   id: string;
   day_id: string;
   exercise_id: string;
   position: number;
   target_sets: number;
+  /** The planned sets (plans made by older versions only have target_sets). */
+  sets?: PlannedSet[] | null;
   name: string;
   muscle_group: string;
 };
@@ -290,8 +295,15 @@ export function removeDayExercise(api: Api, id: string) {
   return api.del(`/day-exercises/${id}`);
 }
 
-export function setDayExerciseSets(api: Api, id: string, sets: number) {
-  return api.patch(`/day-exercises/${id}`, { target_sets: Math.max(1, Math.min(10, sets)) });
+/** The planned sets of an exercise in a plan day (older plans: N empty working sets). */
+export function plannedSetsOf(e: DayExercise): PlannedSet[] {
+  if (e.sets?.length) return e.sets;
+  return Array.from({ length: Math.max(1, e.target_sets) }, () => ({ kind: 'normal' as const, reps: 0, weight_kg: 0 }));
+}
+
+/** Save every planned set (1-20) of an exercise in a plan day. */
+export function saveDayExercisePlan(api: Api, id: string, sets: PlannedSet[]) {
+  return api.patch(`/day-exercises/${id}`, { sets: sets.slice(0, 20) });
 }
 
 /** Swap an exercise with its neighbour (dir -1 = up, +1 = down). */

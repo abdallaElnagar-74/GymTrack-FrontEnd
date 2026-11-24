@@ -5,7 +5,7 @@ import { useApi } from '@/src/api/SessionContext';
 import { getExercises, type Exercise } from '../db/queries';
 import { MUSCLE_GROUPS } from '../db/seed';
 import { groupColor, theme } from '../theme';
-import { GroupAvatar } from './ui';
+import { GroupDot } from './ui';
 
 export function ExercisePicker({
   visible,
@@ -88,7 +88,7 @@ export function ExercisePicker({
             <Pressable
               style={({ pressed }) => [styles.item, pressed && { backgroundColor: theme.cardAlt }]}
               onPress={() => pick(item)}>
-              <GroupAvatar name={item.name} group={item.muscle_group} size={38} />
+              <GroupDot group={item.muscle_group} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.itemName}>{item.name}</Text>
                 <Text style={[styles.itemGroup, { color: groupColor(item.muscle_group) }]}>{item.muscle_group}</Text>

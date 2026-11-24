@@ -6,7 +6,7 @@ import { ApiError } from '@/src/api/http';
 import { useScreenData } from '@/src/hooks/useScreenData';
 import { useApi } from '@/src/api/SessionContext';
 
-import { Button, GroupAvatar, GroupDot, LoadError, Loading, ScreenHeader } from '@/src/components/ui';
+import { Button, GroupDot, LoadError, Loading, ScreenHeader } from '@/src/components/ui';
 import { addExercise, getExercises, type Exercise } from '@/src/db/queries';
 import { MUSCLE_GROUPS } from '@/src/db/seed';
 import { groupColor, theme } from '@/src/theme';
@@ -137,7 +137,6 @@ export default function ExercisesScreen() {
               pressed && { backgroundColor: theme.cardAlt },
             ]}
             onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: String(item.id) } })}>
-            <GroupAvatar name={item.name} group={item.muscle_group} size={36} />
             <Text style={styles.name}>{item.name}</Text>
             <Text style={styles.chev}>›</Text>
           </Pressable>
@@ -222,7 +221,7 @@ const styles = StyleSheet.create({
   },
   first: { borderTopLeftRadius: 16, borderTopRightRadius: 16 },
   last: { borderBottomLeftRadius: 16, borderBottomRightRadius: 16, borderBottomWidth: 0 },
-  name: { color: theme.text, fontSize: 16, fontWeight: '600', flex: 1 },
+  name: { color: theme.text, fontSize: 16, fontWeight: '600', flex: 1, paddingVertical: 6 },
   chev: { color: theme.faint, fontSize: 24 },
   empty: { color: theme.muted, textAlign: 'center', marginTop: 30 },
 });
