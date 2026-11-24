@@ -229,7 +229,7 @@ export default function TrainExercise() {
         }}
       />
       <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: rest ? 150 : 40 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         automaticallyAdjustKeyboardInsets>

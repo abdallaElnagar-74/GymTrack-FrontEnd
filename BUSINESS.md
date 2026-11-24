@@ -4,7 +4,7 @@ Product memory for AI assistants and developers: what the app is for, what it do
 feature, and what was decided. Keep these rules when changing features. Technical details are in
 [TECHNOLOGY.md](TECHNOLOGY.md).
 
-_Last updated: 2026-11-24 · current release v1.0.5._
+_Last updated: 2026-11-24 · current release v1.0.7._
 
 ---
 
@@ -36,7 +36,7 @@ under your account, so it survives a lost phone and is the same on every device.
   - Big **▶ Start training** button (then "Continue: <exercise>") opens the training screen on the first exercise
     with sets left; tapping any exercise opens its training screen. All weights and reps are entered there.
   - When every set is done the list says so and *Finish workout* becomes the main button.
-  - **Rest timer** starts after every ticked set: default **1 minute**, −15 / +15 seconds, **Skip rest**; shows what's next
+  - **Rest timer** starts after every ticked set and fills the whole screen (big countdown ring, Skip button at the bottom; tapping anywhere also goes to the next set): default **1 minute**, −15 / +15 seconds, **Skip rest**; shows what's next
     ("Rest · next: Squat"); vibrates when rest is over. Length is a setting (Off, 1:00, 1:30, 2:00, 3:00), saved to the account.
   - *Finish workout*: unticked sets are removed; if nothing was ticked the workout is discarded. Shows a summary
     (duration · exercises · sets · weight lifted).
@@ -102,6 +102,8 @@ under your account, so it survives a lost phone and is the same on every device.
 | 1.0.3 | 2026-11-24 | Plan every set (type, weight, reps) before training; full exercise names; no letter tiles on exercises |
 | 1.0.4 | 2026-11-24 | Training screen: workout opens on the first exercise, one set at a time, auto-moves to the next exercise |
 | 1.0.5 | 2026-11-24 | Workout list is overview-only with "Start training"; training screen shows your last 3 sessions; GymTrack logo as app icon and splash |
+| 1.0.6 | 2026-11-24 | Full-screen rest timer after Done, with a big Skip button |
+| 1.0.7 | 2026-11-24 | Tap anywhere on the rest timer to go to the next set |
 
 APKs are built locally (`E:\GymApp\GymTrack-<version>.apk`) and installed by sideloading over the previous version.
 Not on Google Play yet.

@@ -347,7 +347,7 @@ export default function WorkoutScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.scroll, rest && { paddingBottom: 140 }]}
+        contentContainerStyle={styles.scroll}
         refreshControl={refreshControl}>
         {nextUp && (
           <Button
