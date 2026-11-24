@@ -9,24 +9,25 @@ import { theme } from '@/src/theme';
 type Mode = 'login' | 'register';
 
 /**
- * Email sign-in / sign-up. Used as the Account screen (upgrading a guest) and as the
- * full-screen sign-in after the user signed out (`onGuest` then offers to continue without an account).
+ * Email sign-in / sign-up, required before using the app. `fromGuest`: this phone has a guest
+ * account from an earlier version — creating an account keeps its data, signing in adds it to that account.
  */
 export function AccountForm({
   apiUrl,
   notice,
   fromGuest = false,
+  fullScreen = false,
   onSubmit,
-  onGuest,
 }: {
   apiUrl: string;
   notice?: string;
   fromGuest?: boolean;
+  /** Shown as a whole screen (handles the status bar area). */
+  fullScreen?: boolean;
   onSubmit: (apiUrl: string, email: string, password: string, mode: Mode) => Promise<void>;
-  onGuest?: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const [mode, setMode] = useState<Mode>('login');
+  const [mode, setMode] = useState<Mode>(fromGuest ? 'register' : 'login');
   // When the build sets EXPO_PUBLIC_API_URL, every request goes there, so the field is fixed.
   const fixedUrl = configuredApiUrl();
   const [typedUrl, setUrl] = useState<string | null>(null);
@@ -53,7 +54,7 @@ export function AccountForm({
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
-        contentContainerStyle={{ padding: 20, paddingTop: onGuest ? insets.top + 24 : 20, paddingBottom: 40 }}
+        contentContainerStyle={{ padding: 20, paddingTop: fullScreen ? insets.top + 24 : 20, paddingBottom: 40 }}
         keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>{mode === 'login' ? 'Welcome back' : 'Create account'}</Text>
         <Text style={styles.sub}>
@@ -127,9 +128,6 @@ export function AccountForm({
               ? 'The workouts you logged on this phone are added to that account.'
               : 'Your workouts so far are kept in the new account.'}
           </Text>
-        )}
-        {onGuest && (
-          <Button title="Continue without an account" variant="ghost" onPress={onGuest} style={{ marginTop: 14 }} />
         )}
       </ScrollView>
     </KeyboardAvoidingView>

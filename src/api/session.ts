@@ -50,6 +50,24 @@ async function start(apiUrl: string, r: AuthResponse): Promise<Session> {
   return s;
 }
 
+/**
+ * Sign in to the guest account an earlier app version made on this phone, if there is one
+ * (never creates one). The user is then asked to register or sign in, which keeps its data.
+ */
+export async function resumeGuest(apiUrl: string): Promise<Session | null> {
+  const dev = await loadDevice();
+  if (!dev) return null;
+  try {
+    return await start(apiUrl, await authCall(apiUrl, 'login', dev));
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401) {
+      await clearDevice(); // gone from the server: nothing to keep
+      return null;
+    }
+    throw e;
+  }
+}
+
 /** Sign in to this device's guest account, creating one if there is none yet. */
 export async function linkGuest(apiUrl: string, { seed = true } = {}): Promise<Session> {
   const dev = await loadDevice();

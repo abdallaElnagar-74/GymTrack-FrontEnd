@@ -24,8 +24,8 @@ import {
 } from '@/src/db/queries';
 import { groupColor, theme } from '@/src/theme';
 import { useUnit } from '@/src/UnitContext';
-import { formatSet, formatShortDate, toDisplay } from '@/src/utils/format';
-import { kindInfo } from '@/src/utils/setKind';
+import { formatShortDate, toDisplay } from '@/src/utils/format';
+import { kindInfo, setLabels } from '@/src/utils/setKind';
 import { deleteVideoFile } from '@/src/utils/videoFiles';
 
 // Heaviest set of a session, ignoring warm-ups (falls back to all sets if only warm-ups were logged).
@@ -193,20 +193,30 @@ export default function ExerciseDetail() {
                 Top {toDisplay(top, unit)} {unit}
               </Text>
             </View>
-            <View style={styles.setChips}>
-              {s.sets.map((x) => (
-                <View
-                  key={x.id}
-                  style={[styles.setChip, x.kind !== 'normal' && { borderColor: kindInfo(x.kind).color + '66' }]}>
-                  <Text style={styles.setChipText}>
-                    {x.kind !== 'normal' && (
-                      <Text style={{ color: kindInfo(x.kind).color, fontWeight: '900' }}>{kindInfo(x.kind).short} </Text>
-                    )}
-                    {formatSet(x.reps, x.weight_kg, unit)}
+            <View style={styles.histHead}>
+              <Text style={[styles.histHeadText, styles.histSet]}>SET</Text>
+              <Text style={[styles.histHeadText, styles.histVal]}>WEIGHT ({unit.toUpperCase()})</Text>
+              <Text style={[styles.histHeadText, styles.histVal]}>REPS</Text>
+            </View>
+            {s.sets.map((x, i, all) => {
+              const special = x.kind !== 'normal';
+              const info = kindInfo(x.kind);
+              return (
+                <View key={x.id} style={[styles.histRow, i % 2 === 0 && styles.histRowAlt]}>
+                  <View style={styles.histSet}>
+                    <View style={[styles.histBadge, special && { backgroundColor: info.color + '26' }]}>
+                      <Text style={[styles.histBadgeText, special && { color: info.color }]}>{setLabels(all)[i]}</Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.histVal, styles.histNum]}>
+                    {toDisplay(x.weight_kg, unit)} <Text style={styles.histUnit}>{unit}</Text>
+                  </Text>
+                  <Text style={[styles.histVal, styles.histNum]}>
+                    {x.reps} <Text style={styles.histUnit}>{x.reps === 1 ? 'rep' : 'reps'}</Text>
                   </Text>
                 </View>
-              ))}
-            </View>
+              );
+            })}
           </View>
         );
       })}
@@ -241,9 +251,16 @@ const styles = StyleSheet.create({
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   cardDate: { color: theme.text, fontWeight: '700' },
   cardTopW: { color: theme.accent, fontWeight: '700', fontSize: 13 },
-  setChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  setChip: { backgroundColor: theme.cardAlt, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: 'transparent' },
-  setChipText: { color: theme.text, fontSize: 13, fontWeight: '600' },
+  histHead: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, marginBottom: 4 },
+  histHeadText: { color: theme.faint, fontSize: 11, fontWeight: '800', letterSpacing: 0.8 },
+  histRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 6, borderRadius: 8 },
+  histRowAlt: { backgroundColor: theme.cardAlt },
+  histSet: { width: 44 },
+  histVal: { flex: 1 },
+  histBadge: { width: 26, height: 26, borderRadius: 8, backgroundColor: theme.input, alignItems: 'center', justifyContent: 'center' },
+  histBadgeText: { color: theme.text, fontWeight: '800', fontSize: 12 },
+  histNum: { color: theme.text, fontSize: 16, fontWeight: '800' },
+  histUnit: { color: theme.muted, fontSize: 12, fontWeight: '600' },
   empty: { backgroundColor: theme.card, borderRadius: 16, padding: 16 },
   muted: { color: theme.muted, lineHeight: 20 },
 });

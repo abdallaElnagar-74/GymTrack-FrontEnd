@@ -15,14 +15,14 @@ type Ctx = {
 const UnitContext = createContext<Ctx>({
   unit: 'kg',
   setUnit: async () => {},
-  restSeconds: 90,
+  restSeconds: 60,
   setRestSeconds: async () => {},
 });
 
 export function UnitProvider({ children }: { children: ReactNode }) {
   const api = useApi();
   const [unit, setUnitState] = useState<Unit>('kg');
-  const [restSeconds, setRestState] = useState(90);
+  const [restSeconds, setRestState] = useState(60);
 
   useEffect(() => {
     getSettings(api)

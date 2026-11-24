@@ -6,16 +6,7 @@ import { theme } from '@/src/theme';
 import { notify } from '@/src/utils/confirm';
 import { ApiError, apiRequest, configuredApiUrl, normalizeUrl, resolveApiUrl } from './http';
 import { migrateLegacyData } from './legacy';
-import {
-  clearSession,
-  getAutoLink,
-  isDeviceAccount,
-  linkGuest,
-  loadSession,
-  setAutoLink,
-  signInWithEmail,
-  type Session,
-} from './session';
+import { clearSession, isDeviceAccount, loadSession, resumeGuest, signInWithEmail, type Session } from './session';
 
 /** Client for the backend's data API (`/api/...`). Every call goes to MongoDB through the server. */
 export type Api = {
@@ -81,24 +72,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           await apiRequest(s.apiUrl, '/auth/me', { token: s.token, timeoutMs: 15000 });
         } catch (e) {
           if (!(e instanceof ApiError && e.status === 401)) throw e;
-          // Expired or account deleted. A guest just logs back in below; an email account must sign in again.
+          // Expired or account deleted. A guest logs back in below; an email account must sign in again.
           await clearSession();
-          if (!isDeviceAccount(s.email)) {
-            await setAutoLink(false);
-            setError('Your session expired. Please sign in again.');
-          }
+          if (!isDeviceAccount(s.email)) setError('Your session expired. Please sign in again.');
           s = null;
         }
       }
-      if (!s) {
-        const url = resolveApiUrl('');
-        if (!(await getAutoLink())) {
-          setSession(null);
-          setStatus('signedOut');
-          return;
-        }
-        if (!url) throw new ApiError(0, 'No server address configured (set EXPO_PUBLIC_API_URL in .env).');
-        s = await linkGuest(url);
+      // An account is required. A guest account made by an earlier version is kept (logged in)
+      // so that registering / signing in carries its workouts over, but the app isn't usable as a guest.
+      const url = resolveApiUrl(s?.apiUrl ?? '');
+      if (!s && url) s = await resumeGuest(url);
+      if (!s || isDeviceAccount(s.email)) {
+        setSession(s);
+        if (s) setError('Create an account or sign in to keep the workouts on this phone.');
+        setStatus('signedOut');
+        return;
       }
       console.log(`[api] connected to ${s.apiUrl}`);
       setSession(s);
@@ -126,15 +114,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const onUnauthorized = useCallback(async () => {
     await clearSession();
-    if (session && !isDeviceAccount(session.email)) {
-      await setAutoLink(false);
-      setError('Your session expired. Please sign in again.');
-      setSession(null);
-      setStatus('signedOut');
-    } else {
-      retry(); // guest: just log back in
-    }
-  }, [session, retry]);
+    setError('Your session expired. Please sign in again.');
+    setSession(null);
+    setStatus('signedOut');
+  }, []);
 
   const api = useMemo<Api>(() => {
     const request = async <T,>(method: string, path: string, body?: unknown): Promise<T> => {
@@ -161,7 +144,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(
     async (url: string, mail: string, password: string, mode: 'login' | 'register') => {
       const s = await signInWithEmail(normalizeUrl(url), mail, password, mode, session);
-      await setAutoLink(true);
       setError('');
       setSession(s);
       setEpoch((n) => n + 1);
@@ -172,17 +154,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await clearSession();
-    await setAutoLink(false);
     setError('');
     setSession(null);
     setStatus('signedOut');
   }, []);
-
-  const continueAsGuest = useCallback(async () => {
-    await setAutoLink(true);
-    setError('');
-    retry();
-  }, [retry]);
 
   if (status === 'loading') {
     return (
@@ -212,10 +187,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return (
       <View style={{ flex: 1, backgroundColor: theme.bg }}>
         <AccountForm
-          apiUrl={resolveApiUrl('')}
+          apiUrl={resolveApiUrl(session?.apiUrl ?? '')}
           notice={error || undefined}
+          fromGuest={!!session && isDeviceAccount(session.email)}
+          fullScreen
           onSubmit={(url, mail, pw, mode) => signIn(url, mail, pw, mode)}
-          onGuest={continueAsGuest}
         />
       </View>
     );

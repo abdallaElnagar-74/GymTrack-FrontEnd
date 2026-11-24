@@ -17,8 +17,9 @@ export function formatWeight(kg: number, unit: Unit): string {
   return `${toDisplay(kg, unit)}`;
 }
 
+/** e.g. "60 kg × 10" — weight with its unit first, then the reps. */
 export function formatSet(reps: number, kg: number, unit: Unit): string {
-  return `${reps}×${formatWeight(kg, unit)}`;
+  return `${formatWeight(kg, unit)} ${unit} × ${reps}`;
 }
 
 export function formatDate(ts: number): string {

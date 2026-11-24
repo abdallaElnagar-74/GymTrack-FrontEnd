@@ -1,5 +1,15 @@
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Keyboard,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type ScrollViewInstance,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { useApi, type Api } from '@/src/api/SessionContext';
@@ -50,6 +60,10 @@ function greeting() {
   return 'Good evening';
 }
 
+/** Clock reads for tap handlers (kept out of the component so they are never part of rendering). */
+const msFromNow = (ms: number) => Date.now() + ms;
+const msSince = (t: number) => Date.now() - t;
+
 function formatDuration(ms: number) {
   const min = Math.max(1, Math.round(ms / 60000));
   return min >= 60 ? `${Math.floor(min / 60)}h ${min % 60}m` : `${min} min`;
@@ -92,6 +106,10 @@ export default function WorkoutScreen() {
   const pending = useRef<PendingEdits>(new Map());
   // Tick / set-type changes still on their way to the server; finishing waits for them.
   const inFlight = useRef(new Set<Promise<unknown>>());
+  // Where each exercise card (and the Finish button) sits in the list, to scroll to the next one.
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const cardY = useRef(new Map<string, number>());
+  const finishY = useRef(0);
   const track = (p: Promise<unknown>) => {
     const q = p.catch(reportError).finally(() => inFlight.current.delete(q));
     inFlight.current.add(q);
@@ -210,7 +228,30 @@ export default function WorkoutScreen() {
     haptic.tap();
     patchSet(set, { done: done ? 1 : 0 });
     track(setSetDone(api, set.id, done));
-    if (done && restSeconds > 0) setRest({ endsAt: Date.now() + restSeconds * 1000, total: restSeconds * 1000 });
+
+    // Ticking the last set of an exercise moves on to the next exercise that still has sets to do.
+    const index = groups.findIndex((g) => g.exercise.id === set.exercise_id);
+    const finishedExercise = done && index >= 0 && groups[index].sets.every((s) => s.id === set.id || s.done === 1);
+    const undone = (g: WorkoutExercise) => g.sets.some((s) => s.done !== 1 && s.id !== set.id);
+    const next = finishedExercise
+      ? (groups.slice(index + 1).find(undone) ?? groups.slice(0, index).find(undone))
+      : undefined;
+    if (finishedExercise) {
+      haptic.success();
+      // After the tick re-renders, so the layout is current.
+      setTimeout(() => {
+        const y = next ? cardY.current.get(next.exercise.id) : finishY.current;
+        if (y !== undefined) scrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: true });
+      }, 150);
+    }
+
+    if (done && restSeconds > 0) {
+      setRest({
+        endsAt: msFromNow(restSeconds * 1000),
+        total: restSeconds * 1000,
+        next: finishedExercise ? (next ? next.exercise.name : 'Finish workout') : undefined,
+      });
+    }
   };
 
   const adjustRest = useCallback(
@@ -271,7 +312,7 @@ export default function WorkoutScreen() {
         : 'Great work! Save this workout to your history.';
     const done = groups.flatMap((g) => g.sets).filter((s) => s.done === 1);
     const summary = [
-      formatDuration(Date.now() - workout.date),
+      formatDuration(msSince(workout.date)),
       `${groups.filter((g) => g.sets.some((s) => s.done === 1)).length} exercises`,
       `${done.length} sets`,
       `${Math.round(toDisplay(done.reduce((v, s) => v + setVolume(s), 0), unit)).toLocaleString()} ${unit} lifted`,
@@ -453,6 +494,7 @@ export default function WorkoutScreen() {
       </View>
 
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={[styles.scroll, rest && { paddingBottom: 140 }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
@@ -467,8 +509,8 @@ export default function WorkoutScreen() {
           </View>
         )}
         {groups.map((g) => (
+          <View key={g.exercise.id} onLayout={(e) => cardY.current.set(g.exercise.id, e.nativeEvent.layout.y)}>
           <ExerciseCard
-            key={g.exercise.id}
             workoutId={workout.id}
             group={g}
             unit={unit}
@@ -479,6 +521,7 @@ export default function WorkoutScreen() {
             onChangeKind={onChangeKind}
             onRemove={() => onRemoveExercise(g)}
           />
+          </View>
         ))}
         {adding.map((ex) => (
           <View key={ex.id} style={styles.addingCard}>
@@ -492,7 +535,9 @@ export default function WorkoutScreen() {
         {groups.length > 0 && (
           <Button title="Add exercise" icon="+" variant="ghost" onPress={() => setPicker(true)} />
         )}
-        <Button title="Finish workout" icon="✓" size="lg" onPress={onFinish} style={{ marginTop: 24 }} />
+        <View onLayout={(e) => (finishY.current = e.nativeEvent.layout.y)}>
+          <Button title="Finish workout" icon="✓" size="lg" onPress={onFinish} style={{ marginTop: 24 }} />
+        </View>
         <Button title="Discard workout" variant="danger" onPress={onDiscard} style={{ marginTop: 10 }} />
       </ScrollView>
       {rest && <RestTimer rest={rest} onAdjust={adjustRest} onClose={closeRest} />}

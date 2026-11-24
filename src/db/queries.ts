@@ -225,7 +225,7 @@ export type Settings = { unit: Unit; rest_seconds: number };
 
 export async function getSettings(api: Api): Promise<Settings> {
   const s = await api.get<Partial<Settings>>('/settings');
-  return { unit: s.unit === 'lb' ? 'lb' : 'kg', rest_seconds: s.rest_seconds ?? 90 };
+  return { unit: s.unit === 'lb' ? 'lb' : 'kg', rest_seconds: s.rest_seconds ?? 60 };
 }
 
 /** Saves only the fields given. */

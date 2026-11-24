@@ -4,7 +4,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { theme } from '../theme';
 import { haptic } from '../utils/feedback';
 
-export type Rest = { endsAt: number; total: number };
+/** `next`: name of the exercise coming up, when the one just finished is complete. */
+export type Rest = { endsAt: number; total: number; next?: string };
 
 function fmt(ms: number) {
   const s = Math.ceil(ms / 1000);
@@ -64,7 +65,9 @@ export function RestTimer({
       </View>
       <View style={styles.row}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.label}>{over ? 'Rest over' : 'Rest'}</Text>
+          <Text style={styles.label} numberOfLines={1}>
+            {rest.next ? `${over ? 'Rest over' : 'Rest'} · next: ${rest.next}` : over ? 'Rest over' : 'Rest · next set in'}
+          </Text>
           <Text style={[styles.time, over && { color: theme.accent }]} accessibilityLabel={over ? 'Rest over, next set' : `Rest ${fmt(left)} left`}>
             {over ? 'Next set 💪' : fmt(left)}
           </Text>
@@ -75,7 +78,7 @@ export function RestTimer({
             <Chip text="+15" label="15 seconds more" onPress={() => onAdjust(15000)} />
           </>
         )}
-        <Chip text={over ? 'Close' : 'Skip'} label={over ? 'Close' : 'Skip rest'} onPress={onClose} strong />
+        <Chip text={over ? 'Close' : 'Skip rest ⏭'} label={over ? 'Close' : 'Skip rest'} onPress={onClose} strong />
       </View>
     </View>
   );
@@ -126,6 +129,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  chipStrong: { backgroundColor: theme.accent },
+  chipStrong: { backgroundColor: theme.accent, paddingHorizontal: 14 },
   chipText: { color: theme.text, fontWeight: '800', fontSize: 14 },
 });

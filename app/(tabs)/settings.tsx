@@ -12,7 +12,6 @@ import { exportAll, importAll, type BackupFile } from '@/src/db/queries';
 import { theme } from '@/src/theme';
 import { useUnit } from '@/src/UnitContext';
 import type { Unit } from '@/src/utils/format';
-import { router, type Href } from 'expo-router';
 
 const REST_OPTIONS = [
   { seconds: 0, label: 'Off' },
@@ -24,7 +23,7 @@ const REST_OPTIONS = [
 
 export default function SettingsScreen() {
   const session = useSession();
-  const { api, isGuest } = session;
+  const { api } = session;
   const { unit, setUnit, restSeconds, setRestSeconds } = useUnit();
   const [busy, setBusy] = useState(false);
 
@@ -88,33 +87,24 @@ export default function SettingsScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle} numberOfLines={1}>
-                {isGuest ? 'Guest account' : session.email}
+                {session.email}
               </Text>
               <Text style={styles.rowSub} numberOfLines={2}>
-                {isGuest ? 'Saved in the cloud for this phone only' : 'Saved in the cloud · same data on every device'}
+                Saved in the cloud · same data on every device
               </Text>
             </View>
           </View>
           <View style={styles.sep} />
-          {isGuest ? (
-            <Row
-              icon="👤"
-              title="Sign in with email"
-              sub="Keep your data and use it on other phones"
-              onPress={() => router.push('/account' as Href)}
-            />
-          ) : (
-            <Row
-              icon="⎋"
-              title="Sign out"
-              sub="Your data stays in your account"
-              onPress={() =>
-                confirm('Sign out?', 'Sign in again with the same email to get your data back.', 'Sign out', () =>
-                  session.signOut()
-                )
-              }
-            />
-          )}
+          <Row
+            icon="⎋"
+            title="Sign out"
+            sub="Your data stays in your account"
+            onPress={() =>
+              confirm('Sign out?', 'Sign in again with the same email to get your data back.', 'Sign out', () =>
+                session.signOut()
+              )
+            }
+          />
         </View>
 
         <SectionTitle>Weight unit</SectionTitle>

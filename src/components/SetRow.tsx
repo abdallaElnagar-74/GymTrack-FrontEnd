@@ -65,9 +65,22 @@ export function SetRow({
           {showTrophy ? '🏆' : label}
         </Text>
       </Pressable>
-      <Text style={styles.prev} numberOfLines={1}>
-        {prev ? formatSet(prev.reps, prev.weight_kg, unit) : '—'}
-      </Text>
+      <View
+        style={styles.prevBox}
+        accessibilityLabel={prev ? `Last time ${formatSet(prev.reps, prev.weight_kg, unit)} reps` : 'No previous set'}>
+        {prev ? (
+          <>
+            <Text style={styles.prevW} numberOfLines={1} adjustsFontSizeToFit>
+              {toDisplay(prev.weight_kg, unit)} {unit}
+            </Text>
+            <Text style={styles.prevR} numberOfLines={1}>
+              × {prev.reps} reps
+            </Text>
+          </>
+        ) : (
+          <Text style={styles.prevR}>—</Text>
+        )}
+      </View>
       <TextInput
         style={inputStyle(focus === 'w')}
         value={weight}
@@ -167,7 +180,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   setNumText: { color: theme.text, fontWeight: '800' },
-  prev: { width: SET_COLS.prev, color: theme.muted, fontSize: 13, textAlign: 'center' },
+  prevBox: { width: SET_COLS.prev, alignItems: 'center' },
+  prevW: { color: theme.muted, fontSize: 13, fontWeight: '700' },
+  prevR: { color: theme.faint, fontSize: 11, fontWeight: '600' },
   input: {
     flexGrow: 1,
     flexShrink: 1,
