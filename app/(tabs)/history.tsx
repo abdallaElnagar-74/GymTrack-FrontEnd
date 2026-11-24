@@ -6,15 +6,16 @@ import { useApi } from '@/src/api/SessionContext';
 import { LoadError, Loading, ScreenHeader } from '@/src/components/ui';
 import { useScreenData } from '@/src/hooks/useScreenData';
 import { getWorkoutSummaries, type WorkoutSummary } from '@/src/db/queries';
-import { theme } from '@/src/theme';
+import { alpha, theme } from '@/src/theme';
 import { useUnit } from '@/src/UnitContext';
 import { toDisplay } from '@/src/utils/format';
+import { isRTL, locale, plural, t } from '@/src/i18n';
 
 function duration(w: WorkoutSummary) {
   if (!w.finished_at) return null;
   const min = Math.round((w.finished_at - w.date) / 60000);
   if (min < 1 || min > 600) return null;
-  return min >= 60 ? `${Math.floor(min / 60)}h ${min % 60}m` : `${min} min`;
+  return min >= 60 ? t('{h}h {m}m', { h: Math.floor(min / 60), m: min % 60 }) : t('{n} min', { n: min });
 }
 
 export default function HistoryScreen() {
@@ -28,8 +29,8 @@ export default function HistoryScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
       <ScreenHeader
-        subtitle={status === 'ready' ? `${items.length} workout${items.length === 1 ? '' : 's'}` : ' '}
-        title="History"
+        subtitle={status === 'ready' ? plural(items.length, '1 workout', '{n} workouts') : ' '}
+        title={t('History')}
       />
       {status === 'loading' ? (
         <Loading />
@@ -44,8 +45,8 @@ export default function HistoryScreen() {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={{ fontSize: 44 }}>📅</Text>
-            <Text style={styles.emptyTitle}>No workouts yet</Text>
-            <Text style={styles.emptySub}>Finished workouts will show up here.</Text>
+            <Text style={styles.emptyTitle}>{t('No workouts yet')}</Text>
+            <Text style={styles.emptySub}>{t('Finished workouts will show up here.')}</Text>
           </View>
         }
         renderItem={({ item }) => {
@@ -57,21 +58,21 @@ export default function HistoryScreen() {
               onPress={() => router.push({ pathname: '/workout/[id]', params: { id: String(item.id) } })}>
               <View style={styles.dateBlock}>
                 <Text style={styles.day}>{d.getDate()}</Text>
-                <Text style={styles.month}>{d.toLocaleDateString(undefined, { month: 'short' }).toUpperCase()}</Text>
+                <Text style={styles.month}>{d.toLocaleDateString(locale, { month: 'short' }).toUpperCase()}</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.title}>{item.title || d.toLocaleDateString(undefined, { weekday: 'long' })}</Text>
-                {item.title ? <Text style={styles.sub}>{d.toLocaleDateString(undefined, { weekday: 'long' })}</Text> : null}
+                <Text style={styles.title}>{item.title || d.toLocaleDateString(locale, { weekday: 'long' })}</Text>
+                {item.title ? <Text style={styles.sub}>{d.toLocaleDateString(locale, { weekday: 'long' })}</Text> : null}
                 <View style={styles.chips}>
-                  <Chip text={`${item.exercise_count} exercises`} />
-                  <Chip text={`${item.set_count} sets`} />
+                  <Chip text={plural(item.exercise_count, '1 exercise', '{n} exercises')} />
+                  <Chip text={plural(item.set_count, '1 set', '{n} sets')} />
                   {dur ? <Chip text={`⏱ ${dur}`} /> : null}
                 </View>
                 <Text style={styles.volume}>
-                  {Math.round(toDisplay(item.volume, unit)).toLocaleString()} {unit} total volume
+                  {t('{n} {unit} total volume', { n: Math.round(toDisplay(item.volume, unit)).toLocaleString(), unit })}
                 </Text>
               </View>
-              <Text style={styles.chev}>›</Text>
+              <Text style={styles.chev}>{isRTL ? '‹' : '›'}</Text>
             </Pressable>
           );
         }}
@@ -105,12 +106,12 @@ const styles = StyleSheet.create({
     width: 56,
     height: 60,
     borderRadius: 14,
-    backgroundColor: 'rgba(198,255,61,0.1)',
+    backgroundColor: alpha(theme.accent, 0.1),
     alignItems: 'center',
     justifyContent: 'center',
   },
   day: { color: theme.accent, fontSize: 22, fontWeight: '800' },
-  month: { color: theme.accent, fontSize: 11, fontWeight: '700', letterSpacing: 1 },
+  month: { color: theme.accent, fontSize: 11, fontWeight: '700', letterSpacing: isRTL ? 0 : 1 },
   title: { color: theme.text, fontSize: 17, fontWeight: '700' },
   sub: { color: theme.faint, fontSize: 12, marginTop: 1 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },

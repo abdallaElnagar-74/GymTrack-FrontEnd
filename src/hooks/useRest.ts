@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
-import type { Rest } from '../components/RestTimer';
+import type { Rest, UpNext } from '../components/RestTimer';
 
 /**
  * The rest countdown between sets, shared by the workout list and the exercise screens, so it
@@ -16,7 +16,7 @@ function emit() {
 export const rest = {
   get: () => current,
   /** Start a rest of `seconds` (0 = rest timer off). `next`: what comes after it. */
-  start(seconds: number, next?: string) {
+  start(seconds: number, next?: UpNext) {
     if (seconds <= 0) return;
     current = { endsAt: Date.now() + seconds * 1000, total: seconds * 1000, next };
     emit();

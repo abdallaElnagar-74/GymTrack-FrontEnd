@@ -1,3 +1,5 @@
+import { locale } from '../i18n';
+
 export type Unit = 'kg' | 'lb';
 
 const KG_TO_LB = 2.20462262;
@@ -23,7 +25,7 @@ export function formatSet(reps: number, kg: number, unit: Unit): string {
 }
 
 export function formatDate(ts: number): string {
-  return new Date(ts).toLocaleDateString(undefined, {
+  return new Date(ts).toLocaleDateString(locale, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -31,5 +33,5 @@ export function formatDate(ts: number): string {
 }
 
 export function formatShortDate(ts: number): string {
-  return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return new Date(ts).toLocaleDateString(locale, { month: 'short', day: 'numeric' });
 }

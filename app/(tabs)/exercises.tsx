@@ -10,6 +10,7 @@ import { Button, GroupDot, LoadError, Loading, ScreenHeader } from '@/src/compon
 import { addExercise, getExercises, type Exercise } from '@/src/db/queries';
 import { MUSCLE_GROUPS } from '@/src/db/seed';
 import { groupColor, theme } from '@/src/theme';
+import { isRTL, plural, t } from '@/src/i18n';
 
 export default function ExercisesScreen() {
   const api = useApi();
@@ -41,7 +42,7 @@ export default function ExercisesScreen() {
       setAdding(false);
       await load();
     } catch (e) {
-      if (e instanceof ApiError && e.status === 409) notify('Already exists', 'An exercise with that name already exists.');
+      if (e instanceof ApiError && e.status === 409) notify(t('Already exists'), t('An exercise with that name already exists.'));
       else throw e; // shown by the button
     }
   };
@@ -49,8 +50,8 @@ export default function ExercisesScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
       <ScreenHeader
-        subtitle={status === 'ready' ? `${items.length} exercises` : ' '}
-        title="Exercises"
+        subtitle={status === 'ready' ? plural(items.length, '1 exercise', '{n} exercises') : ' '}
+        title={t('Exercises')}
         right={
           <Pressable onPress={() => setAdding((a) => !a)} style={styles.addBtn}>
             <Text style={styles.addBtnText}>{adding ? '✕' : '+'}</Text>
@@ -74,12 +75,12 @@ export default function ExercisesScreen() {
           <View>
             {adding && (
               <View style={styles.form}>
-                <Text style={styles.formTitle}>New exercise</Text>
+                <Text style={styles.formTitle}>{t('New exercise')}</Text>
                 <TextInput
                   style={styles.input}
                   value={name}
                   onChangeText={setName}
-                  placeholder="e.g. Cable Crossover"
+                  placeholder={t('e.g. Cable Crossover')}
                   placeholderTextColor={theme.faint}
                   autoFocus
                   autoCapitalize="words"
@@ -94,12 +95,12 @@ export default function ExercisesScreen() {
                         onPress={() => setGroup(g)}
                         style={[styles.chip, active && { backgroundColor: c + '26', borderColor: c }]}>
                         <GroupDot group={g} size={8} />
-                        <Text style={[styles.chipText, active && { color: c }]}>{g}</Text>
+                        <Text style={[styles.chipText, active && { color: c }]}>{t(g)}</Text>
                       </Pressable>
                     );
                   })}
                 </View>
-                <Button title="Save exercise" onPress={onAdd} disabled={!name.trim()} />
+                <Button title={t('Save exercise')} onPress={onAdd} disabled={!name.trim()} />
               </View>
             )}
             <View style={styles.searchBox}>
@@ -108,13 +109,13 @@ export default function ExercisesScreen() {
                 style={styles.search}
                 value={q}
                 onChangeText={setQ}
-                placeholder="Search exercises"
+                placeholder={t('Search exercises')}
                 placeholderTextColor={theme.faint}
                 returnKeyType="search"
                 autoCorrect={false}
               />
               {q ? (
-                <Pressable onPress={() => setQ('')} hitSlop={10} accessibilityLabel="Clear search">
+                <Pressable onPress={() => setQ('')} hitSlop={10} accessibilityLabel={t('Clear search')}>
                   <Text style={styles.clear}>✕</Text>
                 </Pressable>
               ) : null}
@@ -124,7 +125,7 @@ export default function ExercisesScreen() {
         renderSectionHeader={({ section }) => (
           <View style={styles.secHeader}>
             <GroupDot group={section.title.trim()} />
-            <Text style={styles.secTitle}>{section.title}</Text>
+            <Text style={styles.secTitle}>{t(section.title.trim())}</Text>
             <Text style={styles.secCount}>{section.data.length}</Text>
           </View>
         )}
@@ -138,11 +139,11 @@ export default function ExercisesScreen() {
             ]}
             onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: String(item.id) } })}>
             <Text style={styles.name}>{item.name}</Text>
-            <Text style={styles.chev}>›</Text>
+            <Text style={styles.chev}>{isRTL ? '‹' : '›'}</Text>
           </Pressable>
         )}
         ListEmptyComponent={
-          <Text style={styles.empty}>{q.trim() ? `No exercises match “${q}”.` : 'No exercises yet. Tap + to add one.'}</Text>
+          <Text style={styles.empty}>{q.trim() ? t('No exercises match “{q}”.', { q }) : t('No exercises yet. Tap + to add one.')}</Text>
         }
       />
       )}

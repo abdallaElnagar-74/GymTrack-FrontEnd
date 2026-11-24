@@ -92,7 +92,7 @@ export async function apiRequest<T>(
     });
   } catch (e) {
     if (__DEV__) console.warn(`[api] ${method} ${url} -> network error: ${(e as Error)?.message ?? e}`);
-    throw new ApiError(0, `Cannot reach the server at ${normalizeUrl(baseUrl)}. Is the backend running?`);
+    throw new ApiError(0, "Can’t reach the server. Check your internet connection.");
   } finally {
     clearTimeout(timer);
   }

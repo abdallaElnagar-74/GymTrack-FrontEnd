@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { PlannedSet, SetKind } from '../db/queries';
-import { theme } from '../theme';
+import { isRTL, t } from '../i18n';
+import { alpha, theme } from '../theme';
 import { fromDisplay, toDisplay, type Unit } from '../utils/format';
 import { kindInfo, setLabels } from '../utils/setKind';
 
@@ -87,9 +88,9 @@ export function PlanSetsEditor({
   return (
     <View style={styles.wrap}>
       <View style={styles.head}>
-        <Text style={[styles.col, styles.setCol]}>SET</Text>
+        <Text style={[styles.col, styles.setCol]}>{t('SET')}</Text>
         <Text style={[styles.col, styles.flex]}>{unit.toUpperCase()}</Text>
-        <Text style={[styles.col, styles.flex]}>REPS</Text>
+        <Text style={[styles.col, styles.flex]}>{t('REPS')}</Text>
         <View style={styles.delCol} />
       </View>
       {rows.map((r, i) => {
@@ -101,7 +102,7 @@ export function PlanSetsEditor({
               onPress={() => change(i, { kind: NEXT_KIND[r.kind] })}
               hitSlop={4}
               accessibilityRole="button"
-              accessibilityLabel={`${info.label} ${labels[i]}. Tap to change set type`}
+              accessibilityLabel={`${info.label} ${labels[i]}. ${t('Tap to change set type')}`}
               style={[
                 styles.badge,
                 styles.setCol,
@@ -113,28 +114,28 @@ export function PlanSetsEditor({
               style={[styles.input, styles.flex]}
               value={r.weight}
               onChangeText={(t) => change(i, { weight: t })}
-              placeholder="last"
+              placeholder={t('last')}
               placeholderTextColor={theme.faint}
               keyboardType="decimal-pad"
               selectTextOnFocus
-              accessibilityLabel={`Set ${labels[i]} weight in ${unit}`}
+              accessibilityLabel={t('Set {n} weight in {unit}', { n: labels[i], unit })}
             />
             <TextInput
               style={[styles.input, styles.flex]}
               value={r.reps}
               onChangeText={(t) => change(i, { reps: t })}
-              placeholder="last"
+              placeholder={t('last')}
               placeholderTextColor={theme.faint}
               keyboardType="number-pad"
               selectTextOnFocus
-              accessibilityLabel={`Set ${labels[i]} reps`}
+              accessibilityLabel={t('Set {n} reps', { n: labels[i] })}
             />
             <Pressable
               onPress={() => remove(i)}
               disabled={rows.length <= 1}
               hitSlop={6}
               accessibilityRole="button"
-              accessibilityLabel={`Remove set ${labels[i]}`}
+              accessibilityLabel={t('Remove set {n}', { n: labels[i] })}
               style={[styles.delCol, styles.del, rows.length <= 1 && { opacity: 0.25 }]}>
               <Text style={styles.delText}>✕</Text>
             </Pressable>
@@ -147,9 +148,9 @@ export function PlanSetsEditor({
           disabled={rows.length >= MAX_SETS}
           accessibilityRole="button"
           style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.7 }]}>
-          <Text style={styles.addText}>+ Add set</Text>
+          <Text style={styles.addText}>{t('+ Add set')}</Text>
         </Pressable>
-        <Text style={styles.hint}>Tap the set number: working → warm-up (W) → drop (D)</Text>
+        <Text style={styles.hint}>{t('Tap the set number: working → warm-up (W) → drop (D)')}</Text>
       </View>
     </View>
   );
@@ -158,7 +159,7 @@ export function PlanSetsEditor({
 const styles = StyleSheet.create({
   wrap: { marginTop: 6, marginLeft: 26, gap: 4 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  col: { color: theme.faint, fontSize: 10, fontWeight: '800', letterSpacing: 0.8, textAlign: 'center' },
+  col: { color: theme.faint, fontSize: 10, fontWeight: '800', letterSpacing: isRTL ? 0 : 0.8, textAlign: 'center' },
   setCol: { width: 34 },
   flex: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
   delCol: { width: 30 },
@@ -179,7 +180,7 @@ const styles = StyleSheet.create({
   del: { height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   delText: { color: theme.faint, fontWeight: '800' },
   footer: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 },
-  addBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 9, backgroundColor: 'rgba(198,255,61,0.12)' },
+  addBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 9, backgroundColor: alpha(theme.accent, 0.12) },
   addText: { color: theme.accent, fontWeight: '800', fontSize: 13 },
   hint: { flex: 1, color: theme.faint, fontSize: 11 },
 });

@@ -28,19 +28,20 @@ import {
   type Workout,
   type WorkoutExercise,
 } from '@/src/db/queries';
-import { groupColor, theme } from '@/src/theme';
+import { alpha, groupColor, theme } from '@/src/theme';
 
 import { useUnit } from '@/src/UnitContext';
 import { confirm, notify } from '@/src/utils/confirm';
 import { haptic, reportError } from '@/src/utils/feedback';
 import { formatShortDate, toDisplay, type Unit } from '@/src/utils/format';
 import { kindInfo, setLabels, setVolume } from '@/src/utils/setKind';
+import { isRTL, plural, t } from '@/src/i18n';
 
 function greeting() {
   const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 18) return 'Good afternoon';
-  return 'Good evening';
+  if (h < 12) return t('Good morning');
+  if (h < 18) return t('Good afternoon');
+  return t('Good evening');
 }
 
 /** Clock reads for tap handlers (kept out of the component so they are never part of rendering). */
@@ -48,7 +49,7 @@ const msSince = (t: number) => Date.now() - t;
 
 function formatDuration(ms: number) {
   const min = Math.max(1, Math.round(ms / 60000));
-  return min >= 60 ? `${Math.floor(min / 60)}h ${min % 60}m` : `${min} min`;
+  return min >= 60 ? t('{h}h {m}m', { h: Math.floor(min / 60), m: min % 60 }) : t('{n} min', { n: min });
 }
 
 function compact(n: number) {
@@ -109,11 +110,11 @@ export default function WorkoutScreen() {
     }
   };
 
-  const onStartEmpty = () => run('Starting workout…', () => startWorkout(api));
+  const onStartEmpty = () => run(t('Starting workout…'), () => startWorkout(api));
 
   // A plan day opens straight on its first exercise.
   const onStartDay = (dayId: string) =>
-    run('Starting workout…', async () => {
+    run(t('Starting workout…'), async () => {
       const workoutId = await startWorkoutFromDay(api, dayId);
       const first = (await getWorkoutExercises(api, workoutId))[0];
       if (first) router.push({ pathname: '/train/[id]', params: { id: first.exercise.id } });
@@ -130,7 +131,7 @@ export default function WorkoutScreen() {
       await addSet(api, workout.id, ex.id, first?.reps ?? 0, first?.weight_kg ?? 0, first?.kind ?? 'normal');
       await refreshGroups();
     } catch (e) {
-      reportError(e, `Couldn’t add ${ex.name}`);
+      reportError(e, t('Couldn’t add {name}', { name: ex.name }));
     } finally {
       setAdding((a) => a.filter((x) => x.id !== ex.id));
     }
@@ -139,13 +140,13 @@ export default function WorkoutScreen() {
   const onRemoveExercise = (g: WorkoutExercise) => {
     if (!workout) return;
     confirm(
-      'Remove exercise?',
-      `Remove ${g.exercise.name} and its sets from this workout?`,
-      'Remove',
+      t('Remove exercise?'),
+      t('Remove {name} and its sets from this workout?', { name: g.exercise.name }),
+      t('Remove'),
       () => {
         setGroups((prev) => prev.filter((x) => x.exercise.id !== g.exercise.id));
         removeExerciseFromWorkout(api, workout.id, g.exercise.id).catch((e) => {
-          reportError(e, `Couldn’t remove ${g.exercise.name}`);
+          reportError(e, t('Couldn’t remove {name}', { name: g.exercise.name }));
           refreshGroups().catch(() => {});
         });
       },
@@ -159,38 +160,38 @@ export default function WorkoutScreen() {
     const undone = groups.reduce((n, g) => n + g.sets.filter((s) => s.done !== 1).length, 0);
     const msg =
       undone > 0
-        ? `${undone} set${undone > 1 ? 's are' : ' is'} not ticked ✓ and will be removed. Save the rest to history?`
-        : 'Great work! Save this workout to your history.';
+        ? plural(undone, '1 set is not done ✓ and will be removed. Save the rest to history?', '{n} sets are not done ✓ and will be removed. Save the rest to history?')
+        : t('Great work! Save this workout to your history.');
     const done = groups.flatMap((g) => g.sets).filter((s) => s.done === 1);
     const summary = [
       formatDuration(msSince(workout.date)),
-      `${groups.filter((g) => g.sets.some((s) => s.done === 1)).length} exercises`,
-      `${done.length} sets`,
-      `${Math.round(toDisplay(done.reduce((v, s) => v + setVolume(s), 0), unit)).toLocaleString()} ${unit} lifted`,
+      plural(groups.filter((g) => g.sets.some((s) => s.done === 1)).length, '1 exercise', '{n} exercises'),
+      plural(done.length, '1 set', '{n} sets'),
+      t('{n} {unit} lifted', { n: Math.round(toDisplay(done.reduce((v, s) => v + setVolume(s), 0), unit)).toLocaleString(), unit }),
     ].join(' · ');
     confirm(
-      'Finish workout?',
+      t('Finish workout?'),
       msg,
-      'Finish',
+      t('Finish'),
       () =>
-        run('Saving workout…', async () => {
+        run(t('Saving workout…'), async () => {
           const saved = await finishWorkout(api, workout.id);
           if (saved) {
             haptic.success();
-            notify('Workout saved 🎉', summary);
-          } else notify('Nothing logged', 'No sets were ticked, so the workout was discarded.');
+            notify(t('Workout saved 🎉'), summary);
+          } else notify(t('Nothing logged'), t('No sets were done, so the workout was discarded.'));
         }),
-      { cancelText: 'Keep going' }
+      { cancelText: t('Keep going') }
     );
   };
 
   const onDiscard = () => {
     if (!workout) return;
     confirm(
-      'Discard workout?',
-      'All sets in this workout will be deleted.',
-      'Discard',
-      () => run('Discarding…', () => deleteWorkout(api, workout.id)),
+      t('Discard workout?'),
+      t('All sets in this workout will be deleted.'),
+      t('Discard'),
+      () => run(t('Discarding…'), () => deleteWorkout(api, workout.id)),
       { destructive: true }
     );
   };
@@ -207,7 +208,7 @@ export default function WorkoutScreen() {
   if (status !== 'ready') {
     return (
       <View style={styles.container}>
-        <ScreenHeader subtitle={greeting()} title="Let's train 💪" />
+        <ScreenHeader subtitle={greeting()} title={t("Let's train 💪")} />
         {status === 'loading' ? <Loading /> : <LoadError message={error} onRetry={retry} />}
       </View>
     );
@@ -217,14 +218,14 @@ export default function WorkoutScreen() {
   if (!workout) {
     return (
       <View style={styles.container}>
-        <ScreenHeader subtitle={greeting()} title="Let's train 💪" />
+        <ScreenHeader subtitle={greeting()} title={t("Let's train 💪")} />
         <ScrollView contentContainerStyle={styles.scroll} refreshControl={refreshControl}>
           {plans.map((p) => {
             const next = p.days.find((d) => d.id === p.nextDayId);
             return (
               <View key={p.id} style={styles.planCard}>
                 <LinearGradient
-                  colors={['#1f2a0a', '#141a08', theme.card]}
+                  colors={[theme.heroFrom, theme.heroTo, theme.card]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.planHero}>
@@ -233,18 +234,18 @@ export default function WorkoutScreen() {
                     <Pressable
                       hitSlop={8}
                       onPress={() => router.push({ pathname: '/routine/[id]', params: { id: String(p.id) } })}>
-                      <Text style={styles.edit}>Edit</Text>
+                      <Text style={styles.edit}>{t('Edit')}</Text>
                     </Pressable>
                   </View>
                   {next ? (
                     <>
-                      <Text style={styles.nextLabel}>Next up</Text>
+                      <Text style={styles.nextLabel}>{t('Next up')}</Text>
                       <Text style={styles.heroTitle}>{next.name}</Text>
                       <Text style={styles.heroSub} numberOfLines={2}>
-                        {next.exercises.map((e) => e.name).join(' · ') || 'No exercises yet'}
+                        {next.exercises.map((e) => e.name).join(' · ') || t('No exercises yet')}
                       </Text>
                       <Button
-                        title={`Start ${next.name}`}
+                        title={t('Start {name}', { name: next.name })}
                         icon="▶"
                         size="lg"
                         onPress={() => onStartDay(next.id)}
@@ -252,7 +253,7 @@ export default function WorkoutScreen() {
                       />
                     </>
                   ) : (
-                    <Text style={styles.heroSub}>Add days to this plan to start training.</Text>
+                    <Text style={styles.heroSub}>{t('Add days to this plan to start training.')}</Text>
                   )}
                 </LinearGradient>
                 {p.days.length > 1 && (
@@ -263,7 +264,7 @@ export default function WorkoutScreen() {
                         <Pressable
                           key={d.id}
                           accessibilityRole="button"
-                          accessibilityLabel={`Start ${d.name}`}
+                          accessibilityLabel={t('Start {name}', { name: d.name })}
                           disabled={!!busy}
                           style={({ pressed }) => [styles.dayChip, pressed && { opacity: 0.7 }]}
                           onPress={() => onStartDay(d.id)}>
@@ -278,35 +279,35 @@ export default function WorkoutScreen() {
 
           {plans.length === 0 && (
             <LinearGradient
-              colors={['#1f2a0a', '#141a08', theme.card]}
+              colors={[theme.heroFrom, theme.heroTo, theme.card]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.planHero}>
-              <Text style={styles.heroKicker}>GET ORGANISED</Text>
-              <Text style={styles.heroTitle}>Create your training plan</Text>
+              <Text style={styles.heroKicker}>{t('GET ORGANISED')}</Text>
+              <Text style={styles.heroTitle}>{t('Create your training plan')}</Text>
               <Text style={styles.heroSub}>
-                Split your exercises into days, like an Arnold Split or Upper / Lower, then start a day with one tap.
+                {t('Split your exercises into days, like an Arnold Split or Upper / Lower, then start a day with one tap.')}
               </Text>
-              <Button title="Set up a plan" icon="+" size="lg" onPress={() => router.push('/plans')} style={{ marginTop: 16 }} />
+              <Button title={t('Set up a plan')} icon="+" size="lg" onPress={() => router.push('/plans')} style={{ marginTop: 16 }} />
             </LinearGradient>
           )}
 
-          <Button title="Start empty workout" variant="secondary" onPress={onStartEmpty} style={{ marginTop: 12 }} />
+          <Button title={t('Start empty workout')} variant="secondary" onPress={onStartEmpty} style={{ marginTop: 12 }} />
 
-          <Text style={styles.section}>Your progress</Text>
+          <Text style={styles.section}>{t('Your progress')}</Text>
           <View style={styles.statsRow}>
-            <StatTile value={String(stats?.thisWeek ?? 0)} label="This week" color={theme.accent} />
-            <StatTile value={`${stats?.streakWeeks ?? 0} 🔥`} label="Week streak" color={theme.gold} />
+            <StatTile value={String(stats?.thisWeek ?? 0)} label={t('This week')} color={theme.accent} />
+            <StatTile value={`${stats?.streakWeeks ?? 0} 🔥`} label={t('Week streak')} color={theme.gold} />
           </View>
           <View style={[styles.statsRow, { marginTop: 10 }]}>
-            <StatTile value={String(stats?.total ?? 0)} label="Total workouts" />
+            <StatTile value={String(stats?.total ?? 0)} label={t('Total workouts')} />
             <StatTile
               value={`${compact(toDisplay(stats?.weekVolume ?? 0, unit))}`}
-              label={`${unit} lifted this week`}
+              label={t('{unit} lifted this week', { unit })}
             />
           </View>
           {stats?.lastDate ? (
-            <Text style={styles.lastNote}>Last workout · {formatShortDate(stats.lastDate)}</Text>
+            <Text style={styles.lastNote}>{t('Last workout')} · {formatShortDate(stats.lastDate)}</Text>
           ) : null}
         </ScrollView>
         {overlay}
@@ -326,8 +327,8 @@ export default function WorkoutScreen() {
   return (
     <View style={styles.container}>
       <ScreenHeader
-        subtitle="Workout in progress"
-        title={workout.title || 'Today'}
+        subtitle={t('Workout in progress')}
+        title={workout.title || t('Today')}
         right={
           <View style={styles.timerBox}>
             <View style={styles.liveDot} />
@@ -336,11 +337,11 @@ export default function WorkoutScreen() {
         }
       />
       <View style={styles.summary}>
-        <Summary value={String(groups.length)} label="Exercises" />
+        <Summary value={String(groups.length)} label={t('Exercises')} />
         <View style={styles.divider} />
-        <Summary value={`${doneSets.length}/${allSets.length}`} label="Sets done" />
+        <Summary value={`${doneSets.length}/${allSets.length}`} label={t('Sets done')} />
         <View style={styles.divider} />
-        <Summary value={`${compact(toDisplay(volume, unit))}`} label={`Volume (${unit})`} />
+        <Summary value={`${compact(toDisplay(volume, unit))}`} label={t('Volume ({unit})', { unit })} />
       </View>
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
@@ -351,7 +352,7 @@ export default function WorkoutScreen() {
         refreshControl={refreshControl}>
         {nextUp && (
           <Button
-            title={doneSets.length ? `Continue: ${nextUp.exercise.name}` : 'Start training'}
+            title={doneSets.length ? t('Continue: {name}', { name: nextUp.exercise.name }) : t('Start training')}
             icon="▶"
             size="lg"
             onPress={() => openTraining(nextUp.exercise.id)}
@@ -359,14 +360,14 @@ export default function WorkoutScreen() {
           />
         )}
         {groups.length > 0 && !nextUp && (
-          <Text style={styles.allDone}>All sets done 💪 Tap “Finish workout” below to save it.</Text>
+          <Text style={styles.allDone}>{t('All sets done 💪 Tap “Finish workout” below to save it.')}</Text>
         )}
         {groups.length === 0 && adding.length === 0 && (
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>🏋️</Text>
-            <Text style={styles.emptyTitle}>No exercises yet</Text>
-            <Text style={styles.emptySub}>Add your first exercise to begin logging sets.</Text>
-            <Button title="Add exercise" icon="+" onPress={() => setPicker(true)} style={{ marginTop: 10, minWidth: 200 }} />
+            <Text style={styles.emptyTitle}>{t('No exercises yet')}</Text>
+            <Text style={styles.emptySub}>{t('Add your first exercise to begin logging sets.')}</Text>
+            <Button title={t('Add exercise')} icon="+" onPress={() => setPicker(true)} style={{ marginTop: 10, minWidth: 200 }} />
           </View>
         )}
         {groups.map((g, i) => (
@@ -382,22 +383,22 @@ export default function WorkoutScreen() {
         {adding.map((ex) => (
           <View key={ex.id} style={styles.addingCard}>
             <ActivityIndicator color={theme.accent} />
-            <Text style={styles.addingText}>Adding {ex.name}…</Text>
+            <Text style={styles.addingText}>{t('Adding {name}…', { name: ex.name })}</Text>
           </View>
         ))}
-        {groups.length > 0 && <Text style={styles.hint}>Tap an exercise to train it set by set.</Text>}
+        {groups.length > 0 && <Text style={styles.hint}>{t('Tap an exercise to train it set by set.')}</Text>}
         {groups.length > 0 && (
-          <Button title="Add exercise" icon="+" variant="ghost" onPress={() => setPicker(true)} />
+          <Button title={t('Add exercise')} icon="+" variant="ghost" onPress={() => setPicker(true)} />
         )}
         <Button
-          title="Finish workout"
+          title={t('Finish workout')}
           icon="✓"
           size="lg"
           variant={nextUp ? 'secondary' : 'primary'}
           onPress={onFinish}
           style={{ marginTop: 24 }}
         />
-        <Button title="Discard workout" variant="danger" onPress={onDiscard} style={{ marginTop: 10 }} />
+        <Button title={t('Discard workout')} variant="danger" onPress={onDiscard} style={{ marginTop: 10 }} />
       </ScrollView>
       {rest && <RestTimer rest={rest} onAdjust={restTimer.adjust} onClose={restTimer.clear} />}
       <ExercisePicker visible={picker} onClose={() => setPicker(false)} onPick={onPick} />
@@ -431,7 +432,7 @@ function ExerciseRow({
       <Pressable
         onPress={onOpen}
         accessibilityRole="button"
-        accessibilityLabel={`${exercise.name}, ${done} of ${sets.length} sets done. Open to train`}
+        accessibilityLabel={`${exercise.name}, ${t('{done}/{total} sets done', { done, total: sets.length })}`}
         style={({ pressed }) => [styles.exMain, pressed && { opacity: 0.75 }]}>
       <View style={styles.exHead}>
         <Text style={styles.exIndex}>{index + 1}</Text>
@@ -440,10 +441,10 @@ function ExerciseRow({
             {exercise.name}
           </Text>
           <Text style={[styles.exMeta, complete && { color: theme.success, fontWeight: '800' }]}>
-            {complete ? '✓ Done' : `${done}/${sets.length} sets done`} · {exercise.muscle_group}
+            {complete ? `✓ ${t('Done')}` : t('{done}/{total} sets done', { done, total: sets.length })} · {t(exercise.muscle_group)}
           </Text>
         </View>
-        <Text style={styles.chev}>›</Text>
+        <Text style={styles.chev}>{isRTL ? '‹' : '›'}</Text>
       </View>
       <View style={styles.miniChips}>
         {sets.map((st, i) => {
@@ -463,7 +464,7 @@ function ExerciseRow({
         onPress={onRemove}
         hitSlop={10}
         accessibilityRole="button"
-        accessibilityLabel={`Remove ${exercise.name} from workout`}
+        accessibilityLabel={t('Remove {name} from workout', { name: exercise.name })}
         style={styles.removeBtn}>
         <Text style={styles.removeText}>✕</Text>
       </Pressable>
@@ -488,11 +489,11 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 20,
     borderWidth: 1,
-    borderColor: 'rgba(198,255,61,0.25)',
+    borderColor: alpha(theme.accent, 0.25),
   },
   planTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   edit: { color: theme.muted, fontWeight: '700', fontSize: 13 },
-  heroKicker: { color: theme.accent, fontSize: 12, fontWeight: '800', letterSpacing: 1.5 },
+  heroKicker: { color: theme.accent, fontSize: 12, fontWeight: '800', letterSpacing: isRTL ? 0 : 1.5 },
   nextLabel: { color: theme.muted, fontSize: 12, fontWeight: '700', marginTop: 10 },
   heroTitle: { color: theme.text, fontSize: 26, fontWeight: '800', marginTop: 2 },
   heroSub: { color: theme.muted, fontSize: 13, marginTop: 6, lineHeight: 19 },
@@ -511,7 +512,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: isRTL ? 0 : 1,
     marginTop: 26,
     marginBottom: 10,
   },
@@ -565,7 +566,7 @@ const styles = StyleSheet.create({
     borderColor: theme.border,
     borderLeftWidth: 4,
   },
-  exRowDone: { borderColor: 'rgba(52,210,123,0.45)' },
+  exRowDone: { borderColor: alpha(theme.success, 0.45) },
   exMain: { flex: 1 },
   exHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   exIndex: { color: theme.faint, fontWeight: '800', fontSize: 15, width: 18, textAlign: 'center' },
@@ -576,7 +577,7 @@ const styles = StyleSheet.create({
   chev: { color: theme.faint, fontSize: 26, marginLeft: 2 },
   miniChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10, marginLeft: 28 },
   miniChip: { backgroundColor: theme.cardAlt, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
-  miniChipDone: { backgroundColor: 'rgba(52,210,123,0.14)' },
+  miniChipDone: { backgroundColor: alpha(theme.success, 0.14) },
   miniChipText: { color: theme.text, fontSize: 12, fontWeight: '700' },
   hint: { color: theme.faint, fontSize: 12, textAlign: 'center', marginBottom: 12 },
   empty: { alignItems: 'center', paddingVertical: 36 },
@@ -602,7 +603,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(10,11,15,0.6)',
+    backgroundColor: alpha(theme.bg, 0.6),
     alignItems: 'center',
     justifyContent: 'center',
   },

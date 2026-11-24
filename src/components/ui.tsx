@@ -3,7 +3,8 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, t
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { groupColor, theme } from '../theme';
+import { isRTL, t } from '../i18n';
+import { alpha, groupColor, theme } from '../theme';
 import { reportError } from '../utils/feedback';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'success' | 'ghost';
@@ -81,7 +82,7 @@ export function Button({
             styles.btn,
             { minHeight: h },
             variant === 'secondary' && { backgroundColor: theme.cardAlt },
-            variant === 'danger' && { backgroundColor: 'rgba(255,90,95,0.14)', borderWidth: 1, borderColor: 'rgba(255,90,95,0.4)' },
+            variant === 'danger' && { backgroundColor: alpha(theme.danger, 0.14), borderWidth: 1, borderColor: alpha(theme.danger, 0.4) },
             variant === 'success' && { backgroundColor: theme.success },
             variant === 'ghost' && { borderWidth: 1.5, borderColor: theme.accent, borderStyle: 'dashed' },
           ]}>
@@ -135,7 +136,7 @@ export function Pill({ text, color = theme.muted }: { text: string; color?: stri
 
 export function PRBadge() {
   return (
-    <View style={styles.pr} accessibilityLabel="New personal record">
+    <View style={styles.pr} accessibilityLabel={t('New personal record')}>
       <Text style={styles.prText}>🏆 PR</Text>
     </View>
   );
@@ -156,9 +157,9 @@ export function LoadError({ message, onRetry }: { message: string; onRetry: () =
   return (
     <View style={styles.center}>
       <Text style={{ fontSize: 40 }}>📡</Text>
-      <Text style={styles.centerTitle}>Couldn’t load this</Text>
+      <Text style={styles.centerTitle}>{t('Couldn’t load this')}</Text>
       <Text style={styles.centerSub}>{message}</Text>
-      <Button title="Try again" onPress={onRetry} variant="secondary" style={{ marginTop: 18, minWidth: 160 }} />
+      <Button title={t('Try again')} onPress={onRetry} variant="secondary" style={{ marginTop: 18, minWidth: 160 }} />
     </View>
   );
 }
@@ -170,10 +171,10 @@ export function DetailState({ missing, what }: { missing: boolean; what: string 
       {missing ? (
         <View style={styles.center}>
           <Text style={{ fontSize: 40 }}>🔍</Text>
-          <Text style={styles.centerTitle}>This {what} no longer exists</Text>
-          <Text style={styles.centerSub}>It may have been deleted on another device.</Text>
+          <Text style={styles.centerTitle}>{t('This {what} no longer exists', { what: t(what) })}</Text>
+          <Text style={styles.centerSub}>{t('It may have been deleted on another device.')}</Text>
           <Button
-            title="Go back"
+            title={t('Go back')}
             variant="secondary"
             onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
             style={{ marginTop: 18, minWidth: 160 }}
@@ -197,7 +198,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  btnText: { fontSize: 16, fontWeight: '700', letterSpacing: 0.2 },
+  btnText: { fontSize: 16, fontWeight: '700', letterSpacing: isRTL ? 0 : 0.2 },
   header: {
     paddingHorizontal: 20,
     paddingBottom: 12,
@@ -205,8 +206,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
   },
-  headerSub: { color: theme.muted, fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1 },
-  headerTitle: { color: theme.text, fontSize: 32, fontWeight: '800', letterSpacing: -0.5 },
+  headerSub: { color: theme.muted, fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: isRTL ? 0 : 1 },
+  headerTitle: { color: theme.text, fontSize: 32, fontWeight: '800', letterSpacing: isRTL ? 0 : -0.5 },
   card: {
     backgroundColor: theme.card,
     borderRadius: theme.radius,
@@ -227,7 +228,7 @@ const styles = StyleSheet.create({
   statLabel: { color: theme.muted, fontSize: 12, marginTop: 2 },
   pill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, alignSelf: 'flex-start' },
   pillText: { fontSize: 12, fontWeight: '700' },
-  pr: { backgroundColor: 'rgba(255,200,61,0.15)', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 3 },
+  pr: { backgroundColor: alpha(theme.gold, 0.15), borderRadius: 8, paddingHorizontal: 6, paddingVertical: 3 },
   prText: { color: theme.gold, fontWeight: '800', fontSize: 11 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, minHeight: 260 },
   centerTitle: { color: theme.text, fontSize: 18, fontWeight: '800', marginTop: 10 },
@@ -237,7 +238,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: isRTL ? 0 : 1,
     marginTop: 24,
     marginBottom: 10,
   },

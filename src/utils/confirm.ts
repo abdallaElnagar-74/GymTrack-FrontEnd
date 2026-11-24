@@ -1,5 +1,7 @@
 import { Alert, Platform } from 'react-native';
 
+import { t } from '../i18n';
+
 /** Cross-platform confirm dialog (Alert buttons don't work on web). */
 export function confirm(
   title: string,
@@ -13,7 +15,7 @@ export function confirm(
     return;
   }
   Alert.alert(title, message, [
-    { text: opts.cancelText ?? 'Cancel', style: 'cancel' },
+    { text: opts.cancelText ?? t('Cancel'), style: 'cancel' },
     { text: confirmText, style: opts.destructive ? 'destructive' : 'default', onPress: onConfirm },
   ]);
 }

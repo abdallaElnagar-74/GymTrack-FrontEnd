@@ -1,9 +1,11 @@
 import type { SetKind, WorkoutSet } from '../db/queries';
+import { t } from '../i18n';
+import { mode, theme } from '../theme';
 
 export const SET_KINDS: { kind: SetKind; label: string; short: string; color: string; hint: string }[] = [
-  { kind: 'normal', label: 'Working set', short: '#', color: '#e8eaf0', hint: 'Counts for records and volume' },
-  { kind: 'warmup', label: 'Warm-up', short: 'W', color: '#ffb340', hint: 'Not counted in records or volume' },
-  { kind: 'drop', label: 'Drop set', short: 'D', color: '#b18cff', hint: 'Lighter weight right after a set' },
+  { kind: 'normal', label: t('Working set'), short: '#', color: theme.text, hint: t('Counts for records and volume') },
+  { kind: 'warmup', label: t('Warm-up'), short: 'W', color: mode === 'light' ? '#d97a00' : '#ffb340', hint: t('Not counted in records or volume') },
+  { kind: 'drop', label: t('Drop set'), short: 'D', color: mode === 'light' ? '#7a4fd6' : '#b18cff', hint: t('Lighter weight right after a set') },
 ];
 
 export function kindInfo(kind: SetKind | undefined) {

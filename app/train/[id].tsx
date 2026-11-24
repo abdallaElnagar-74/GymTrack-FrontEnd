@@ -26,13 +26,14 @@ import {
   type WorkoutSet,
 } from '@/src/db/queries';
 import { rest as restTimer, useRest } from '@/src/hooks/useRest';
-import { groupColor, theme } from '@/src/theme';
+import { alpha, groupColor, theme } from '@/src/theme';
 import { useUnit } from '@/src/UnitContext';
 import { notify } from '@/src/utils/confirm';
 import { haptic, reportError } from '@/src/utils/feedback';
 import { formatShortDate, fromDisplay, toDisplay, type Unit } from '@/src/utils/format';
 import { kindInfo, kindOrdinals, setLabels } from '@/src/utils/setKind';
 import { deleteVideoFile } from '@/src/utils/videoFiles';
+import { isRTL, plural, t } from '@/src/i18n';
 
 const NEXT_KIND: Record<SetKind, SetKind> = { normal: 'warmup', warmup: 'drop', drop: 'normal' };
 
@@ -104,7 +105,7 @@ export default function TrainExercise() {
     if (status === 'missing') {
       return (
         <View style={{ flex: 1, backgroundColor: theme.bg }}>
-          <Stack.Screen options={{ title: 'Workout' }} />
+          <Stack.Screen options={{ title: t('Workout') }} />
           <DetailState missing what="exercise in your current workout" />
         </View>
       );
@@ -163,18 +164,31 @@ export default function TrainExercise() {
       // The next set after this one that isn't done (or the first one left).
       const after = sets.slice(ci + 1).find((s) => s.done !== 1) ?? remaining[0];
       setCurrentId(after.id);
-      restTimer.start(restSeconds);
+      restTimer.start(restSeconds, {
+        kind: 'set',
+        title: exercise.name,
+        detail: `${t('Set {n} of {total}', { n: sets.indexOf(after) + 1, total: sets.length })} · ${kindInfo(after.kind).label}`,
+      });
       return;
     }
     // Exercise complete: on to the next exercise (or back to finish the workout).
     haptic.success();
-    restTimer.start(restSeconds, nextExercise ? nextExercise.exercise.name : 'Finish workout');
+    if (nextExercise) {
+      const left = nextExercise.sets.filter((s) => s.done !== 1).length;
+      restTimer.start(restSeconds, {
+        kind: 'exercise',
+        title: nextExercise.exercise.name,
+        detail: `${plural(left, '1 set', '{n} sets')} · ${t(nextExercise.exercise.muscle_group)}`,
+      });
+    } else {
+      restTimer.start(restSeconds, { kind: 'finish', title: t('Finish workout'), detail: t('All sets done 💪') });
+    }
     await leave();
     setTimeout(() => {
       if (nextExercise) go(nextExercise.exercise.id);
       else {
         router.navigate('/');
-        notify('All sets done 💪', 'Tap "Finish workout" to save it to your history.');
+        notify(t('All sets done 💪'), t('Tap "Finish workout" to save it to your history.'));
       }
     }, 450);
   };
@@ -206,11 +220,8 @@ export default function TrainExercise() {
 
   const doneCount = sets.filter((s) => s.done === 1).length;
   const isLastSetHere = current && sets.filter((s) => s.done !== 1 && s.id !== current.id).length === 0;
-  const doneLabel = !isLastSetHere
-    ? 'Done · next set'
-    : nextExercise
-      ? `Done · next: ${nextExercise.exercise.name}`
-      : 'Done · finish workout';
+  // The last set just says "Done"; the rest screen then shows what comes next.
+  const doneLabel = isLastSetHere ? t('Done') : t('Done · next set');
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
@@ -233,9 +244,10 @@ export default function TrainExercise() {
 
         <Text style={styles.name}>{exercise.name}</Text>
         <View style={styles.metaRow}>
-          <Pill text={exercise.muscle_group} color={color} />
+          <Pill text={t(exercise.muscle_group)} color={color} />
           <Text style={styles.meta}>
-            Exercise {index + 1} of {groups.length} · {doneCount}/{sets.length} sets done
+            {t('Exercise {n} of {total}', { n: index + 1, total: groups.length })} ·{' '}
+            {t('{done}/{total} sets done', { done: doneCount, total: sets.length })}
           </Text>
         </View>
 
@@ -250,7 +262,7 @@ export default function TrainExercise() {
                 key={s.id}
                 onPress={() => setCurrentId(s.id)}
                 accessibilityRole="button"
-                accessibilityLabel={`${info.label} ${labels[i]}${s.done === 1 ? ', done' : ''}`}
+                accessibilityLabel={`${info.label} ${labels[i]}${s.done === 1 ? `, ${t('Done')}` : ''}`}
                 accessibilityState={{ selected: active }}
                 style={[
                   styles.chip,
@@ -284,17 +296,17 @@ export default function TrainExercise() {
             onNext={ci < sets.length - 1 ? () => setCurrentId(sets[ci + 1].id) : undefined}
           />
         ) : (
-          <Text style={styles.meta}>No sets yet — add one below.</Text>
+          <Text style={styles.meta}>{t('No sets yet — add one below.')}</Text>
         )}
 
-        <Button title="Add set" icon="+" variant="secondary" onPress={onAddSet} style={{ marginTop: 12 }} />
+        <Button title={t('Add set')} icon="+" variant="secondary" onPress={onAddSet} style={{ marginTop: 12 }} />
 
         <RecentSessions sessions={recent} unit={unit} />
 
         <View style={styles.navRow}>
           <Button
-            title="Previous"
-            icon="‹"
+            title={t('Previous')}
+            icon={isRTL ? '›' : '‹'}
             variant="secondary"
             disabled={index === 0}
             onPress={async () => {
@@ -304,8 +316,8 @@ export default function TrainExercise() {
             style={{ flex: 1 }}
           />
           <Button
-            title="Next"
-            icon="›"
+            title={t('Next')}
+            icon={isRTL ? '‹' : '›'}
             variant="secondary"
             disabled={index === groups.length - 1}
             onPress={async () => {
@@ -317,12 +329,12 @@ export default function TrainExercise() {
         </View>
         <View style={styles.linkRow}>
           <Pressable onPress={() => router.navigate('/')} hitSlop={8}>
-            <Text style={styles.link}>All exercises</Text>
+            <Text style={styles.link}>{t('All exercises')}</Text>
           </Pressable>
           <Pressable
             onPress={() => router.push({ pathname: '/exercise/[id]', params: { id } })}
             hitSlop={8}>
-            <Text style={styles.link}>History & records</Text>
+            <Text style={styles.link}>{t('History & records')}</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -337,7 +349,7 @@ function RecentSessions({ sessions, unit }: { sessions: ExerciseSession[]; unit:
   return (
     <View style={{ marginTop: 22 }}>
       <Text style={styles.sectionTitle}>
-        Last {sessions.length === 1 ? 'session' : `${sessions.length} sessions`}
+        {plural(sessions.length, 'Last session', 'Last {n} sessions')}
       </Text>
       {sessions.map((session) => {
         const labels = setLabels(session.sets);
@@ -348,7 +360,7 @@ function RecentSessions({ sessions, unit }: { sessions: ExerciseSession[]; unit:
             <View style={styles.recentTop}>
               <Text style={styles.recentDate}>{formatShortDate(session.date)}</Text>
               <Text style={styles.recentTopW}>
-                Top {toDisplay(top, unit)} {unit}
+                {t('Top {w} {unit}', { w: toDisplay(top, unit), unit })}
               </Text>
             </View>
             {session.sets.map((x, i) => {
@@ -363,7 +375,7 @@ function RecentSessions({ sessions, unit }: { sessions: ExerciseSession[]; unit:
                     {toDisplay(x.weight_kg, unit)} <Text style={styles.recentUnit}>{unit}</Text>
                   </Text>
                   <Text style={styles.recentVal}>
-                    {x.reps} <Text style={styles.recentUnit}>{x.reps === 1 ? 'rep' : 'reps'}</Text>
+                    {x.reps} <Text style={styles.recentUnit}>{x.reps === 1 ? t('rep') : t('reps')}</Text>
                   </Text>
                 </View>
               );
@@ -405,15 +417,13 @@ function SetCard({
   onPrev?: () => void;
   onNext?: () => void;
 }) {
-  // Today's weight and reps start empty (the planned numbers are only grey hints), so a set is
-  // never saved with numbers you didn't actually type. A finished set shows what was saved.
-  // The goal is fixed when the card opens, so typing doesn't change the hints.
+  // Today's weight and reps start at 0 (no hints), so a set is never saved with numbers you
+  // didn't actually enter. A finished set shows what was saved. The planned weight is kept only
+  // to tell a bodyweight set (no planned weight, 0 is fine) from a forgotten weight.
   const done = set.done === 1;
-  const [target] = useState(() => (set.reps > 0 ? set.reps : (prev?.reps ?? 0)));
-  const [targetKg] = useState(() => (set.weight_kg > 0 ? set.weight_kg : (prev?.weight_kg ?? 0)));
-  const targetW = toDisplay(targetKg, unit);
-  const [weight, setWeight] = useState(done && set.weight_kg > 0 ? String(toDisplay(set.weight_kg, unit)) : '');
-  const [reps, setReps] = useState(done && set.reps > 0 ? String(set.reps) : '');
+  const [plannedKg] = useState(() => (set.weight_kg > 0 ? set.weight_kg : (prev?.weight_kg ?? 0)));
+  const [weight, setWeight] = useState(done ? String(toDisplay(set.weight_kg, unit)) : '0');
+  const [reps, setReps] = useState(done ? String(set.reps) : '0');
   const info = kindInfo(set.kind);
   const step = unit === 'kg' ? 2.5 : 5;
 
@@ -423,19 +433,14 @@ function SetCard({
     onChange(rN, fromDisplay(wN, unit));
   };
   const bumpWeight = (d: number) => {
-    // From an empty box, − / + start at the planned weight.
-    const v =
-      weight === '' && targetW > 0
-        ? targetW
-        : Math.max(0, Math.round(((parseFloat(weight.replace(',', '.')) || 0) + d) * 10) / 10);
-    const t = v > 0 ? String(v) : '';
+    const v = Math.max(0, Math.round(((parseFloat(weight.replace(',', '.')) || 0) + d) * 10) / 10);
+    const t = String(v);
     setWeight(t);
     commit(t, reps);
   };
   const bumpReps = (d: number) => {
-    // From an empty box, − / + start at the planned number.
-    const v = reps === '' && target > 0 ? target : Math.max(0, (parseInt(reps, 10) || 0) + d);
-    const t = v > 0 ? String(v) : '';
+    const v = Math.max(0, (parseInt(reps, 10) || 0) + d);
+    const t = String(v);
     setReps(t);
     commit(weight, t);
   };
@@ -443,38 +448,39 @@ function SetCard({
   return (
     <View style={[styles.card, done && styles.cardDone]}>
       <View style={styles.cardTop}>
-        <Pressable onPress={onPrev} disabled={!onPrev} hitSlop={10} accessibilityLabel="Previous set">
-          <Text style={[styles.arrow, !onPrev && { opacity: 0.2 }]}>‹</Text>
+        <Pressable onPress={onPrev} disabled={!onPrev} hitSlop={10} accessibilityLabel={t('Previous set')}>
+          <Text style={[styles.arrow, !onPrev && { opacity: 0.2 }]}>{isRTL ? '›' : '‹'}</Text>
         </Pressable>
         <View style={{ flex: 1, alignItems: 'center' }}>
           <Text style={styles.setTitle}>
-            Set {number} of {total}
+            {t('Set {n} of {total}', { n: number, total })}
           </Text>
           <Pressable
             onPress={onKind}
             accessibilityRole="button"
-            accessibilityLabel={`${info.label}. Tap to change set type`}
+            accessibilityLabel={`${info.label}. ${t('Tap to change set type')}`}
             style={[styles.kind, { backgroundColor: info.color + '26', borderColor: info.color + '66' }]}>
             <Text style={[styles.kindText, { color: info.color }]}>
               {label} · {info.label}
             </Text>
           </Pressable>
         </View>
-        <Pressable onPress={onNext} disabled={!onNext} hitSlop={10} accessibilityLabel="Next set">
-          <Text style={[styles.arrow, !onNext && { opacity: 0.2 }]}>›</Text>
+        <Pressable onPress={onNext} disabled={!onNext} hitSlop={10} accessibilityLabel={t('Next set')}>
+          <Text style={[styles.arrow, !onNext && { opacity: 0.2 }]}>{isRTL ? '‹' : '›'}</Text>
         </Pressable>
       </View>
 
       <Text style={styles.lastTime}>
-        {prev ? `Last time: ${toDisplay(prev.weight_kg, unit)} ${unit} × ${prev.reps} reps` : 'First time for this set ✨'}
-        {!done && target > 0 ? `  ·  Goal: ${targetW > 0 ? `${targetW} ${unit} × ` : ''}${target} reps` : ''}
+        {prev
+          ? t('Last time: {w} {unit} × {reps} reps', { w: toDisplay(prev.weight_kg, unit), unit, reps: prev.reps })
+          : t('First time for this set ✨')}
       </Text>
 
       <View style={styles.fields}>
         <Field
-          label={`WEIGHT (${unit.toUpperCase()})`}
+          label={t('WEIGHT ({unit})', { unit: unit.toUpperCase() })}
           value={weight}
-          placeholder={targetW > 0 ? String(targetW) : '0'}
+          placeholder=""
           keyboardType="decimal-pad"
           onChangeText={(t) => {
             setWeight(t);
@@ -484,9 +490,9 @@ function SetCard({
           onPlus={() => bumpWeight(step)}
         />
         <Field
-          label="REPS"
+          label={t('REPS')}
           value={reps}
-          placeholder={target > 0 ? String(target) : '0'}
+          placeholder=""
           keyboardType="number-pad"
           onChangeText={(t) => {
             setReps(t);
@@ -499,8 +505,8 @@ function SetCard({
 
       {done ? (
         <View style={styles.doneRow}>
-          <Text style={styles.doneText}>✓ Done</Text>
-          <Button title="Undo" variant="secondary" onPress={onUndo} style={{ minWidth: 110 }} />
+          <Text style={styles.doneText}>✓ {t('Done')}</Text>
+          <Button title={t('Undo')} variant="secondary" onPress={onUndo} style={{ minWidth: 110 }} />
         </View>
       ) : (
         <Button
@@ -508,13 +514,13 @@ function SetCard({
           icon="✓"
           size="lg"
           onPress={() => {
-            // Weight may stay empty only for bodyweight sets (no planned weight).
-            if (weight.trim() === '' && targetKg > 0) {
-              notify('Enter the weight', 'Type the weight you used in this set, then tap Done.');
+            // Weight may stay 0 only for bodyweight sets (no planned weight).
+            if (!(parseFloat(weight.replace(',', '.')) > 0) && plannedKg > 0) {
+              notify(t('Enter the weight'), t('Type the weight you used in this set, then tap Done.'));
               return;
             }
             if (!(parseInt(reps, 10) > 0)) {
-              notify('Enter your reps', 'Type how many reps you did in this set, then tap Done.');
+              notify(t('Enter your reps'), t('Type how many reps you did in this set, then tap Done.'));
               return;
             }
             onDone();
@@ -547,7 +553,7 @@ function Field({
     <View style={{ flex: 1 }}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <View style={styles.fieldRow}>
-        <Pressable onPress={onMinus} style={styles.step} accessibilityRole="button" accessibilityLabel={`Less ${label}`}>
+        <Pressable onPress={onMinus} style={styles.step} accessibilityRole="button" accessibilityLabel={`− ${label}`}>
           <Text style={styles.stepText}>−</Text>
         </Pressable>
         <TextInput
@@ -560,7 +566,7 @@ function Field({
           selectTextOnFocus
           accessibilityLabel={label}
         />
-        <Pressable onPress={onPlus} style={styles.step} accessibilityRole="button" accessibilityLabel={`More ${label}`}>
+        <Pressable onPress={onPlus} style={styles.step} accessibilityRole="button" accessibilityLabel={`+ ${label}`}>
           <Text style={styles.stepText}>+</Text>
         </Pressable>
       </View>
@@ -585,7 +591,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  chipDone: { backgroundColor: 'rgba(52,210,123,0.14)', borderColor: 'rgba(52,210,123,0.5)' },
+  chipDone: { backgroundColor: alpha(theme.success, 0.14), borderColor: alpha(theme.success, 0.5) },
   chipActive: { backgroundColor: theme.accent, borderColor: theme.accent },
   chipText: { color: theme.text, fontWeight: '800', fontSize: 15 },
   card: {
@@ -596,7 +602,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.border,
   },
-  cardDone: { borderColor: 'rgba(52,210,123,0.5)' },
+  cardDone: { borderColor: alpha(theme.success, 0.5) },
   cardTop: { flexDirection: 'row', alignItems: 'center' },
   arrow: { color: theme.text, fontSize: 40, fontWeight: '300', paddingHorizontal: 8, lineHeight: 44 },
   setTitle: { color: theme.text, fontSize: 20, fontWeight: '800' },
@@ -604,7 +610,7 @@ const styles = StyleSheet.create({
   kindText: { fontWeight: '800', fontSize: 13 },
   lastTime: { color: theme.muted, textAlign: 'center', marginTop: 12, fontSize: 14 },
   fields: { flexDirection: 'row', gap: 12, marginTop: 14 },
-  fieldLabel: { color: theme.faint, fontSize: 11, fontWeight: '800', letterSpacing: 0.8, textAlign: 'center', marginBottom: 6 },
+  fieldLabel: { color: theme.faint, fontSize: 11, fontWeight: '800', letterSpacing: isRTL ? 0 : 0.8, textAlign: 'center', marginBottom: 6 },
   fieldRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   step: {
     width: 38,
@@ -634,7 +640,7 @@ const styles = StyleSheet.create({
     color: theme.muted,
     fontSize: 13,
     fontWeight: '800',
-    letterSpacing: 1,
+    letterSpacing: isRTL ? 0 : 1,
     textTransform: 'uppercase',
     marginBottom: 8,
   },

@@ -16,6 +16,7 @@ import { groupColor, theme } from '@/src/theme';
 import { useUnit } from '@/src/UnitContext';
 import { toDisplay } from '@/src/utils/format';
 import { kindInfo, setLabels, setVolume } from '@/src/utils/setKind';
+import { isRTL, locale, t } from '@/src/i18n';
 
 export default function WorkoutDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -40,9 +41,9 @@ export default function WorkoutDetail() {
 
   const onDelete = () =>
     confirm(
-      'Delete workout?',
-      'This cannot be undone.',
-      'Delete',
+      t('Delete workout?'),
+      t('This cannot be undone.'),
+      t('Delete'),
       async () => {
         await deleteWorkout(api, id);
         router.back();
@@ -59,18 +60,18 @@ export default function WorkoutDetail() {
 
   return (
     <ScrollView style={{ backgroundColor: theme.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-      <Stack.Screen options={{ title: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) }} />
+      <Stack.Screen options={{ title: d.toLocaleDateString(locale, { month: 'short', day: 'numeric' }) }} />
       <Text style={styles.kicker}>
-        {(workout.title ? `${workout.title} · ` : '') + d.toLocaleDateString(undefined, { weekday: 'long' })}
+        {(workout.title ? `${workout.title} · ` : '') + d.toLocaleDateString(locale, { weekday: 'long' })}
       </Text>
       <Text style={styles.date}>
-        {d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
+        {d.toLocaleDateString(locale, { month: 'long', day: 'numeric', year: 'numeric' })}
       </Text>
 
       <View style={styles.stats}>
-        <StatTile value={String(sets)} label="Sets" color={theme.accent} />
-        <StatTile value={`${Math.round(toDisplay(volume, unit)).toLocaleString()}`} label={`Volume (${unit})`} />
-        <StatTile value={mins > 0 && mins < 600 ? `${mins}m` : '—'} label="Duration" />
+        <StatTile value={String(sets)} label={t('Sets')} color={theme.accent} />
+        <StatTile value={`${Math.round(toDisplay(volume, unit)).toLocaleString()}`} label={t('Volume ({unit})', { unit })} />
+        <StatTile value={mins > 0 && mins < 600 ? t('{n} min', { n: mins }) : '—'} label={t('Duration')} />
       </View>
 
       {groups.map((g) => {
@@ -83,9 +84,9 @@ export default function WorkoutDetail() {
               <GroupDot group={g.exercise.muscle_group} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.name}>{g.exercise.name}</Text>
-                <Pill text={g.exercise.muscle_group} color={c} />
+                <Pill text={t(g.exercise.muscle_group)} color={c} />
               </View>
-              <Text style={styles.chev}>›</Text>
+              <Text style={styles.chev}>{isRTL ? '‹' : '›'}</Text>
             </Pressable>
             {g.sets.map((s, i, arr) => {
               const k = kindInfo(s.kind);
@@ -98,7 +99,7 @@ export default function WorkoutDetail() {
                 <Text style={styles.setText}>
                   <Text style={styles.setStrong}>{toDisplay(s.weight_kg, unit)}</Text> {unit}
                   <Text style={styles.times}>  ×  </Text>
-                  <Text style={styles.setStrong}>{s.reps}</Text> reps
+                  <Text style={styles.setStrong}>{s.reps}</Text> {t('reps')}
                 </Text>
                 {special && <Text style={[styles.kindTag, { color: k.color }]}>{k.label}</Text>}
               </View>
@@ -107,13 +108,13 @@ export default function WorkoutDetail() {
           </View>
         );
       })}
-      <Button title="Delete workout" variant="danger" onPress={onDelete} style={{ marginTop: 16 }} />
+      <Button title={t('Delete workout')} variant="danger" onPress={onDelete} style={{ marginTop: 16 }} />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  kicker: { color: theme.accent, fontSize: 12, fontWeight: '800', letterSpacing: 1.5 },
+  kicker: { color: theme.accent, fontSize: 12, fontWeight: '800', letterSpacing: isRTL ? 0 : 1.5 },
   date: { color: theme.text, fontSize: 26, fontWeight: '800', marginTop: 2, marginBottom: 16 },
   stats: { flexDirection: 'row', gap: 10, marginBottom: 18 },
   card: {

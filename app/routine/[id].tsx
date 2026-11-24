@@ -27,11 +27,12 @@ import {
   type PlannedSet,
   type RoutineFull,
 } from '@/src/db/queries';
-import { theme } from '@/src/theme';
+import { alpha, theme } from '@/src/theme';
 import { useUnit } from '@/src/UnitContext';
 import { confirm, notify } from '@/src/utils/confirm';
 import { reportError } from '@/src/utils/feedback';
 import type { Unit } from '@/src/utils/format';
+import { isRTL, plural, t } from '@/src/i18n';
 
 export default function RoutineEditor() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -66,7 +67,7 @@ export default function RoutineEditor() {
             }
           )
         )
-        .catch((e) => reportError(e, 'Couldn’t save the sets')),
+        .catch((e) => reportError(e, t('Couldn’t save the sets'))),
     [api]
   );
 
@@ -99,7 +100,7 @@ export default function RoutineEditor() {
   };
 
   const onAddDay = async () => {
-    const n = newDay.trim() || `Day ${plan.days.length + 1}`;
+    const n = newDay.trim() || t('Day {n}', { n: plan.days.length + 1 });
     await addDay(api, plan.id, n);
     setNewDay('');
     await load();
@@ -110,7 +111,7 @@ export default function RoutineEditor() {
     const day = plan.days.find((d) => d.id === pickerDay);
     setPickerDay(null);
     if (day?.exercises.some((e) => e.exercise_id === ex.id)) {
-      notify('Already added', `${ex.name} is already in ${day.name}.`);
+      notify(t('Already added'), t('{name} is already in {day}.', { name: ex.name, day: day.name }));
       return;
     }
     await addDayExercise(api, pickerDay, ex.id, 3);
@@ -119,13 +120,13 @@ export default function RoutineEditor() {
 
   const onStart = async (day: DayWithExercises) => {
     if (day.exercises.length === 0) {
-      notify('No exercises', 'Add exercises to this day first.');
+      notify(t('No exercises'), t('Add exercises to this day first.'));
       return;
     }
     await Promise.all([...flushers.current].map((f) => f()));
     const active = await getActiveWorkout(api);
     if (active) {
-      notify('Workout in progress', 'Finish or discard your current workout first.');
+      notify(t('Workout in progress'), t('Finish or discard your current workout first.'));
       router.navigate('/');
       return;
     }
@@ -138,9 +139,9 @@ export default function RoutineEditor() {
 
   const onDeletePlan = () =>
     confirm(
-      'Delete plan?',
-      `Delete "${plan.name}" and all its days? Your workout history is kept.`,
-      'Delete',
+      t('Delete plan?'),
+      t('Delete "{name}" and all its days? Your workout history is kept.', { name: plan.name }),
+      t('Delete'),
       async () => {
         await deleteRoutine(api, plan.id);
         router.back();
@@ -150,9 +151,9 @@ export default function RoutineEditor() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
-      <Stack.Screen options={{ title: 'Edit plan' }} />
+      <Stack.Screen options={{ title: t('Edit plan') }} />
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
-        <Text style={styles.label}>PLAN NAME</Text>
+        <Text style={styles.label}>{t('PLAN NAME')}</Text>
         <TextInput
           style={styles.planName}
           value={name}
@@ -173,7 +174,7 @@ export default function RoutineEditor() {
               await load();
             }}
             onDelete={() =>
-              confirm('Delete day?', `Delete "${d.name}" from this plan?`, 'Delete', async () => {
+              confirm(t('Delete day?'), t('Delete "{name}" from this plan?', { name: d.name }), t('Delete'), async () => {
                 await deleteDay(api, d.id);
                 await load();
               }, { destructive: true })
@@ -199,16 +200,16 @@ export default function RoutineEditor() {
             style={styles.addDayInput}
             value={newDay}
             onChangeText={setNewDay}
-            placeholder={`Day ${plan.days.length + 1} name (e.g. Push)`}
+            placeholder={t('Day {n} name (e.g. Push)', { n: plan.days.length + 1 })}
             placeholderTextColor={theme.faint}
             onSubmitEditing={onAddDay}
           />
           <Pressable style={styles.addDayBtn} onPress={onAddDay}>
-            <Text style={styles.addDayBtnText}>+ Day</Text>
+            <Text style={styles.addDayBtnText}>{t('+ Day')}</Text>
           </Pressable>
         </View>
 
-        <Button title="Delete plan" variant="danger" onPress={onDeletePlan} style={{ marginTop: 30 }} />
+        <Button title={t('Delete plan')} variant="danger" onPress={onDeletePlan} style={{ marginTop: 30 }} />
       </ScrollView>
       <ExercisePicker visible={pickerDay != null} onClose={() => setPickerDay(null)} onPick={onPick} />
     </View>
@@ -249,7 +250,7 @@ function DayCard({
   const totalSets = day.exercises.reduce((a, e) => a + plannedSetsOf(e).length, 0);
 
   return (
-    <View style={[styles.day, isNext && { borderColor: 'rgba(198,255,61,0.4)' }]}>
+    <View style={[styles.day, isNext && { borderColor: alpha(theme.accent, 0.4) }]}>
       <View style={styles.dayHead}>
         <View style={[styles.dayIdx, isNext && { backgroundColor: theme.accent }]}>
           <Text style={[styles.dayIdxText, isNext && { color: theme.onAccent }]}>{index + 1}</Text>
@@ -267,7 +268,8 @@ function DayCard({
         </Pressable>
       </View>
       <Text style={styles.dayMeta}>
-        {day.exercises.length} exercises · {totalSets} sets{isNext ? '  ·  NEXT UP' : ''}
+        {plural(day.exercises.length, '1 exercise', '{n} exercises')} · {plural(totalSets, '1 set', '{n} sets')}
+        {isNext ? `  ·  ${t('NEXT UP')}` : ''}
       </Text>
 
       {day.exercises.map((e, i) => (
@@ -289,12 +291,12 @@ function DayCard({
               {e.name}
             </Text>
           </Pressable>
-          <Text style={styles.setCount}>{plannedSetsOf(e).length} sets</Text>
+          <Text style={styles.setCount}>{plural(plannedSetsOf(e).length, '1 set', '{n} sets')}</Text>
           <Pressable
             hitSlop={8}
             onPress={() => onRemoveExercise(e.id)}
             accessibilityRole="button"
-            accessibilityLabel={`Remove ${e.name} from this day`}
+            accessibilityLabel={t('Remove {name} from this day', { name: e.name })}
             style={styles.iconBtn}>
             <Text style={{ color: theme.faint, fontWeight: '800' }}>✕</Text>
           </Pressable>
@@ -307,18 +309,18 @@ function DayCard({
         />
         </View>
       ))}
-      {day.exercises.length > 0 && <Text style={styles.setsHint}>Empty boxes use what you did last time.</Text>}
+      {day.exercises.length > 0 && <Text style={styles.setsHint}>{t('Empty boxes use what you did last time.')}</Text>}
 
       <View style={styles.dayActions}>
-        <Button title="Add exercise" icon="+" variant="secondary" onPress={onAddExercise} style={{ flex: 1 }} />
-        <Button title="Start" icon="▶" onPress={onStart} style={{ flex: 1 }} />
+        <Button title={t('Add exercise')} icon="+" variant="secondary" onPress={onAddExercise} style={{ flex: 1 }} />
+        <Button title={t('Start')} icon="▶" onPress={onStart} style={{ flex: 1 }} />
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  label: { color: theme.muted, fontSize: 12, fontWeight: '800', letterSpacing: 1.2 },
+  label: { color: theme.muted, fontSize: 12, fontWeight: '800', letterSpacing: isRTL ? 0 : 1.2 },
   planName: {
     color: theme.text,
     fontSize: 28,
@@ -383,7 +385,7 @@ const styles = StyleSheet.create({
     height: 50,
     paddingHorizontal: 18,
     borderRadius: 14,
-    backgroundColor: 'rgba(198,255,61,0.14)',
+    backgroundColor: alpha(theme.accent, 0.14),
     alignItems: 'center',
     justifyContent: 'center',
   },

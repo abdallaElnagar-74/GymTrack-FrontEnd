@@ -12,10 +12,11 @@ import {
   type RoutineFull,
 } from '@/src/db/queries';
 import { PLAN_TEMPLATES, type PlanTemplate } from '@/src/db/templates';
-import { theme } from '@/src/theme';
+import { alpha, theme } from '@/src/theme';
 import { notify } from '@/src/utils/confirm';
 import { reportError } from '@/src/utils/feedback';
 import { formatShortDate } from '@/src/utils/format';
+import { isRTL, plural, t } from '@/src/i18n';
 
 export default function PlansScreen() {
   const api = useApi();
@@ -37,16 +38,16 @@ export default function PlansScreen() {
     open(id);
   };
 
-  const existingPlan = (t: PlanTemplate) =>
-    plans.find((p) => p.name.trim().toLowerCase() === t.name.trim().toLowerCase());
+  const existingPlan = (tpl: PlanTemplate) =>
+    plans.find((p) => p.name.trim().toLowerCase() === tpl.name.trim().toLowerCase());
 
-  const onTemplate = async (t: PlanTemplate) => {
+  const onTemplate = async (tpl: PlanTemplate) => {
     if (usingTemplate) return;
-    setUsingTemplate(t.name);
+    setUsingTemplate(tpl.name);
     try {
       // Never adds a second copy: if you already have this plan, it just opens it.
-      const { id, existed } = await createRoutineFromTemplate(api, t);
-      if (existed) notify('Already added', `You already have "${t.name}". Opening it.`);
+      const { id, existed } = await createRoutineFromTemplate(api, tpl);
+      if (existed) notify(t('Already added'), t('You already have "{name}". Opening it.', { name: tpl.name }));
       open(id);
       load().catch(() => {});
     } catch (e) {
@@ -59,8 +60,8 @@ export default function PlansScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
       <ScreenHeader
-        subtitle="Training plans"
-        title="Plans"
+        subtitle={t('Training plans')}
+        title={t('Plans')}
         right={
           <Pressable onPress={() => setCreating((c) => !c)} style={styles.addBtn}>
             <Text style={styles.addBtnText}>{creating ? '✕' : '+'}</Text>
@@ -79,26 +80,26 @@ export default function PlansScreen() {
         refreshControl={refreshControl}>
         {creating && (
           <View style={styles.form}>
-            <Text style={styles.formTitle}>New plan</Text>
+            <Text style={styles.formTitle}>{t('New plan')}</Text>
             <TextInput
               style={styles.input}
               value={name}
               onChangeText={setName}
-              placeholder="e.g. Push Pull Legs"
+              placeholder={t('e.g. Push Pull Legs')}
               placeholderTextColor={theme.faint}
               autoFocus
               onSubmitEditing={() => onCreate().catch(reportError)}
               returnKeyType="done"
             />
-            <Button title="Create plan" onPress={onCreate} disabled={!name.trim()} />
+            <Button title={t('Create plan')} onPress={onCreate} disabled={!name.trim()} />
           </View>
         )}
 
         {plans.length === 0 && !creating && (
           <View style={styles.empty}>
             <Text style={{ fontSize: 44 }}>🗓️</Text>
-            <Text style={styles.emptyTitle}>No plans yet</Text>
-            <Text style={styles.emptySub}>Create your own split, or start from a template below.</Text>
+            <Text style={styles.emptyTitle}>{t('No plans yet')}</Text>
+            <Text style={styles.emptySub}>{t('Create your own split, or start from a template below.')}</Text>
           </View>
         )}
 
@@ -111,11 +112,11 @@ export default function PlansScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.planName}>{p.name}</Text>
                 <Text style={styles.planMeta}>
-                  {p.days.length} day{p.days.length === 1 ? '' : 's'}
-                  {p.lastDone ? ` · last trained ${formatShortDate(p.lastDone)}` : ''}
+                  {plural(p.days.length, '1 day', '{n} days')}
+                  {p.lastDone ? ` · ${t('last trained {date}', { date: formatShortDate(p.lastDone) })}` : ''}
                 </Text>
               </View>
-              <Text style={styles.chev}>›</Text>
+              <Text style={styles.chev}>{isRTL ? '‹' : '›'}</Text>
             </View>
             {p.days.map((d, i) => (
               <View key={d.id} style={styles.dayRow}>
@@ -125,12 +126,12 @@ export default function PlansScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.dayName}>
                     {d.name}
-                    {d.id === p.nextDayId ? <Text style={styles.nextTag}>  · NEXT</Text> : null}
+                    {d.id === p.nextDayId ? <Text style={styles.nextTag}>  · {t('NEXT')}</Text> : null}
                   </Text>
                   <Text style={styles.dayEx} numberOfLines={1}>
                     {d.exercises.length
                       ? d.exercises.map((e) => e.name).join(', ')
-                      : 'No exercises'}
+                      : t('No exercises')}
                   </Text>
                 </View>
               </View>
@@ -138,29 +139,29 @@ export default function PlansScreen() {
           </Pressable>
         ))}
 
-        <SectionTitle>Templates</SectionTitle>
-        {PLAN_TEMPLATES.map((t) => {
-          const have = existingPlan(t);
+        <SectionTitle>{t('Templates')}</SectionTitle>
+        {PLAN_TEMPLATES.map((tpl) => {
+          const have = existingPlan(tpl);
           return (
-            <View key={t.name} style={[styles.tpl, have && styles.tplAdded]}>
+            <View key={tpl.name} style={[styles.tpl, have && styles.tplAdded]}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.tplName}>{t.name}</Text>
-                <Text style={styles.tplDesc}>{have ? '✓ Already in your plans' : t.description}</Text>
+                <Text style={styles.tplName}>{tpl.name}</Text>
+                <Text style={styles.tplDesc}>{have ? `✓ ${t('Already in your plans')}` : t(tpl.description)}</Text>
               </View>
               <Pressable
                 style={[styles.useBtn, have && styles.openBtn]}
                 disabled={!!usingTemplate}
-                onPress={() => (have ? open(have.id) : onTemplate(t))}>
-                {usingTemplate === t.name ? (
+                onPress={() => (have ? open(have.id) : onTemplate(tpl))}>
+                {usingTemplate === tpl.name ? (
                   <ActivityIndicator color={theme.onAccent} size="small" />
                 ) : (
-                  <Text style={[styles.useText, have && { color: theme.text }]}>{have ? 'Open' : 'Use'}</Text>
+                  <Text style={[styles.useText, have && { color: theme.text }]}>{have ? t('Open') : t('Use')}</Text>
                 )}
               </Pressable>
             </View>
           );
         })}
-        <Text style={styles.note}>Templates add the days only — you choose the exercises for each day.</Text>
+        <Text style={styles.note}>{t('Templates add the days only — you choose the exercises for each day.')}</Text>
       </ScrollView>
       )}
     </View>
@@ -241,7 +242,7 @@ const styles = StyleSheet.create({
   tplName: { color: theme.text, fontSize: 16, fontWeight: '800' },
   tplDesc: { color: theme.muted, fontSize: 12, marginTop: 2 },
   useBtn: {
-    backgroundColor: 'rgba(198,255,61,0.14)',
+    backgroundColor: alpha(theme.accent, 0.14),
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 10,

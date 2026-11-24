@@ -18,7 +18,8 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { ExerciseVideo, VideoSource } from '../db/queries';
-import { theme } from '../theme';
+import { alpha, theme } from '../theme';
+import { isRTL, t } from '../i18n';
 import { confirm, notify } from '../utils/confirm';
 import { canStoreVideoFiles, saveVideoFile, videoFile } from '../utils/videoFiles';
 import { parseYouTube, youTubeThumb, youTubeWatchUrl } from '../utils/youtube';
@@ -44,8 +45,8 @@ export function ExerciseVideos({ videos, onAdd, onDelete }: Props) {
           <View style={styles.emptyIcon}>
             <Text style={{ fontSize: 26, color: theme.accent }}>▶</Text>
           </View>
-          <Text style={styles.emptyTitle}>Add a video for this exercise</Text>
-          <Text style={styles.emptySub}>Paste a YouTube link or upload a video from your phone</Text>
+          <Text style={styles.emptyTitle}>{t('Add a video for this exercise')}</Text>
+          <Text style={styles.emptySub}>{t('Paste a YouTube link or upload a video from your phone')}</Text>
         </Pressable>
       ) : (
         <>
@@ -70,7 +71,7 @@ export function ExerciseVideos({ videos, onAdd, onDelete }: Props) {
                 videos.map((v, i) => <View key={v.id} style={[styles.dot, i === page && styles.dotActive]} />)}
             </View>
             <Pressable onPress={() => setAdding(true)} style={styles.addSmall} hitSlop={6}>
-              <Text style={styles.addSmallText}>+ Add video</Text>
+              <Text style={styles.addSmallText}>{t('+ Add video')}</Text>
             </Pressable>
           </View>
         </>
@@ -85,13 +86,13 @@ export function ExerciseVideos({ videos, onAdd, onDelete }: Props) {
 function VideoCard({ video, active, onDelete }: { video: ExerciseVideo; active: boolean; onDelete: () => void }) {
   const yt = video.source === 'youtube' ? parseYouTube(video.url) : null;
   const file = video.source === 'file' ? videoFile(video.url) : null;
-  const title = video.title || (video.source === 'youtube' ? 'YouTube video' : 'My video');
+  const title = video.title || (video.source === 'youtube' ? t('YouTube video') : t('My video'));
 
   const askDelete = () =>
     confirm(
-      'Remove video?',
-      video.source === 'file' ? 'The video file is deleted from the app.' : 'The link is removed from this exercise.',
-      'Remove',
+      t('Remove video?'),
+      video.source === 'file' ? t('The video file is deleted from the app.') : t('The link is removed from this exercise.'),
+      t('Remove'),
       onDelete,
       { destructive: true }
     );
@@ -108,15 +109,15 @@ function VideoCard({ video, active, onDelete }: { video: ExerciseVideo; active: 
             <Text style={{ fontSize: 28 }}>📱</Text>
             <Text style={styles.missingText}>
               {video.source === 'file'
-                ? 'This video was uploaded on another device, so it can only be played there.'
-                : 'This link is not a valid YouTube video.'}
+                ? t('This video was uploaded on another device, so it can only be played there.')
+                : t('This link is not a valid YouTube video.')}
             </Text>
           </View>
         )}
       </View>
       <View style={styles.meta}>
         <View style={[styles.badge, video.source === 'youtube' ? styles.badgeYt : styles.badgeFile]}>
-          <Text style={styles.badgeText}>{video.source === 'youtube' ? 'YouTube' : 'Uploaded'}</Text>
+          <Text style={styles.badgeText}>{video.source === 'youtube' ? 'YouTube' : t('Uploaded')}</Text>
         </View>
         <Text style={styles.title} numberOfLines={1}>
           {title}
@@ -136,7 +137,7 @@ function VideoCard({ video, active, onDelete }: { video: ExerciseVideo; active: 
 
 function PlayOverlay({ onPress, children }: { onPress: () => void; children?: ReactNode }) {
   return (
-    <Pressable onPress={onPress} style={StyleSheet.absoluteFill} accessibilityLabel="Play video">
+    <Pressable onPress={onPress} style={StyleSheet.absoluteFill} accessibilityLabel={t('Play video')}>
       {children}
       <View style={styles.playWrap}>
         <View style={styles.playBtn}>
@@ -217,7 +218,7 @@ function AddVideoSheet({
   };
 
   const addYouTube = async () => {
-    if (!parsed) return notify('Not a YouTube link', 'Paste a link like youtube.com/watch?v=… or youtu.be/…');
+    if (!parsed) return notify(t('Not a YouTube link'), t('Paste a link like youtube.com/watch?v=… or youtu.be/…'));
     setBusy(true);
     try {
       await onAdd('youtube', link.trim(), title);
@@ -248,7 +249,7 @@ function AddVideoSheet({
       await onAdd('file', stored, title);
       close();
     } catch (e: any) {
-      notify('Could not save video', String(e?.message ?? e));
+      notify(t('Could not save video'), String(e?.message ?? e));
     } finally {
       setBusy(false);
     }
@@ -260,30 +261,30 @@ function AddVideoSheet({
         <Pressable style={styles.backdrop} onPress={close}>
           <Pressable style={[styles.sheet, { paddingBottom: 20 + insets.bottom }]} onPress={() => {}}>
             <View style={styles.grabber} />
-            <Text style={styles.sheetTitle}>Add video</Text>
+            <Text style={styles.sheetTitle}>{t('Add video')}</Text>
 
             <View style={styles.segment}>
               {(['youtube', 'file'] as const).map((m) => (
                 <Pressable key={m} onPress={() => setMode(m)} style={[styles.segItem, mode === m && styles.segActive]}>
                   <Text style={[styles.segText, mode === m && { color: theme.onAccent }]}>
-                    {m === 'youtube' ? 'YouTube link' : 'Upload video'}
+                    {m === 'youtube' ? t('YouTube link') : t('Upload video')}
                   </Text>
                 </Pressable>
               ))}
             </View>
 
-            <Text style={styles.label}>Title (optional)</Text>
+            <Text style={styles.label}>{t('Title (optional)')}</Text>
             <TextInput
               style={styles.input}
               value={title}
               onChangeText={setTitle}
-              placeholder="e.g. Proper form, Arnold's tips…"
+              placeholder={t("e.g. Proper form, Arnold's tips…")}
               placeholderTextColor={theme.faint}
             />
 
             {mode === 'youtube' ? (
               <>
-                <Text style={styles.label}>YouTube link</Text>
+                <Text style={styles.label}>{t('YouTube link')}</Text>
                 <TextInput
                   style={[styles.input, link.length > 0 && !parsed && { borderColor: theme.danger }]}
                   value={link}
@@ -295,30 +296,30 @@ function AddVideoSheet({
                   keyboardType="url"
                   onSubmitEditing={addYouTube}
                 />
-                {link.length > 0 && !parsed && <Text style={styles.err}>That doesn’t look like a YouTube video link.</Text>}
+                {link.length > 0 && !parsed && <Text style={styles.err}>{t('That doesn’t look like a YouTube video link.')}</Text>}
                 {parsed && (
                   <View style={styles.preview}>
                     <Image source={{ uri: youTubeThumb(parsed.id) }} style={styles.previewImg} />
-                    <Text style={styles.ok}>✓ YouTube video found</Text>
+                    <Text style={styles.ok}>✓ {t('YouTube video found')}</Text>
                   </View>
                 )}
                 <Button
-                  title={busy ? 'Adding…' : 'Add YouTube video'}
+                  title={busy ? t('Adding…') : t('Add YouTube video')}
                   onPress={busy ? () => {} : addYouTube}
                   style={{ marginTop: 16 }}
                 />
               </>
             ) : canStoreVideoFiles ? (
               <>
-                <Text style={styles.hint}>The video is copied into the app, so it still plays if you delete it from your gallery.</Text>
+                <Text style={styles.hint}>{t('The video is copied into the app, so it still plays if you delete it from your gallery.')}</Text>
                 <Button
-                  title={busy ? 'Saving video…' : 'Choose from gallery'}
+                  title={busy ? t('Saving video…') : t('Choose from gallery')}
                   icon="🎞"
                   onPress={busy ? () => {} : () => addFile('gallery')}
                   style={{ marginTop: 14 }}
                 />
                 <Button
-                  title="Choose from files"
+                  title={t('Choose from files')}
                   icon="📁"
                   variant="secondary"
                   onPress={busy ? () => {} : () => addFile('files')}
@@ -327,7 +328,7 @@ function AddVideoSheet({
               </>
             ) : (
               <Text style={[styles.hint, { marginTop: 14 }]}>
-                Uploading videos works in the phone app. In the browser you can add YouTube links.
+                {t('Uploading videos works in the phone app. In the browser you can add YouTube links.')}
               </Text>
             )}
           </Pressable>
@@ -352,7 +353,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 18,
-    backgroundColor: 'rgba(198,255,61,0.12)',
+    backgroundColor: alpha(theme.accent, 0.12),
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
@@ -383,7 +384,7 @@ const styles = StyleSheet.create({
   meta: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12 },
   badge: { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
   badgeYt: { backgroundColor: 'rgba(255,60,60,0.18)' },
-  badgeFile: { backgroundColor: 'rgba(198,255,61,0.14)' },
+  badgeFile: { backgroundColor: alpha(theme.accent, 0.14) },
   badgeText: { color: theme.text, fontSize: 11, fontWeight: '800' },
   title: { flex: 1, color: theme.text, fontWeight: '700', fontSize: 15 },
   iconBtn: {
@@ -399,7 +400,7 @@ const styles = StyleSheet.create({
   dots: { flex: 1, flexDirection: 'row', gap: 6 },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: theme.border },
   dotActive: { backgroundColor: theme.accent, width: 18 },
-  addSmall: { backgroundColor: 'rgba(198,255,61,0.12)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
+  addSmall: { backgroundColor: alpha(theme.accent, 0.12), borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
   addSmallText: { color: theme.accent, fontWeight: '800', fontSize: 13 },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   sheet: {
@@ -430,7 +431,7 @@ const styles = StyleSheet.create({
     color: theme.muted,
     fontSize: 12,
     fontWeight: '800',
-    letterSpacing: 1,
+    letterSpacing: isRTL ? 0 : 1,
     marginTop: 16,
     marginBottom: 6,
     textTransform: 'uppercase',

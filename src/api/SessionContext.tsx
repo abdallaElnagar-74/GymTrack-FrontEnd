@@ -7,6 +7,7 @@ import { notify } from '@/src/utils/confirm';
 import { ApiError, apiRequest, configuredApiUrl, normalizeUrl, resolveApiUrl } from './http';
 import { migrateLegacyData } from './legacy';
 import { clearSession, isDeviceAccount, loadSession, resumeGuest, signInWithEmail, type Session } from './session';
+import { t } from '@/src/i18n';
 
 /** Client for the backend's data API (`/api/...`). Every call goes to MongoDB through the server. */
 export type Api = {
@@ -35,7 +36,7 @@ let lastAlert = 0;
 function reportConnectionError(message: string) {
   if (Date.now() - lastAlert < 8000) return;
   lastAlert = Date.now();
-  notify('Connection problem', message);
+  notify(t('Connection problem'), t(message));
 }
 
 /**
@@ -74,7 +75,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           if (!(e instanceof ApiError && e.status === 401)) throw e;
           // Expired or account deleted. A guest logs back in below; an email account must sign in again.
           await clearSession();
-          if (!isDeviceAccount(s.email)) setError('Your session expired. Please sign in again.');
+          if (!isDeviceAccount(s.email)) setError(t('Your session expired. Please sign in again.'));
           s = null;
         }
       }
@@ -84,7 +85,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (!s && url) s = await resumeGuest(url);
       if (!s || isDeviceAccount(s.email)) {
         setSession(s);
-        if (s) setError('Create an account or sign in to keep the workouts on this phone.');
+        if (s) setError(t('Create an account or sign in to keep the workouts on this phone.'));
         setStatus('signedOut');
         return;
       }
@@ -94,7 +95,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setStatus('ready');
     } catch (e: any) {
       console.warn('[api] could not connect:', e?.message ?? e);
-      setError(String(e?.message ?? e));
+      setError(t(String(e?.message ?? e)));
       setStatus('error');
     } finally {
       initRunning.current = false;
@@ -114,7 +115,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const onUnauthorized = useCallback(async () => {
     await clearSession();
-    setError('Your session expired. Please sign in again.');
+    setError(t('Your session expired. Please sign in again.'));
     setSession(null);
     setStatus('signedOut');
   }, []);
@@ -163,7 +164,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return (
       <View style={styles.wrap}>
         <ActivityIndicator color={theme.accent} size="large" />
-        <Text style={[styles.body, { marginTop: 16 }]}>Connecting…</Text>
+        <Text style={[styles.body, { marginTop: 16 }]}>{t('Connecting…')}</Text>
       </View>
     );
   }
@@ -171,13 +172,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   if (status === 'error') {
     return (
       <View style={styles.wrap}>
-        <Text style={styles.title}>Can’t reach the server</Text>
+        <Text style={styles.title}>{t('Can’t reach the server')}</Text>
         <Text style={styles.body}>
-          GymTrack keeps your workouts in the cloud, so it needs an internet connection.{'\n\n'}
+          {t('GymTrack keeps your workouts in the cloud, so it needs an internet connection.')}{'\n\n'}
           {error}
         </Text>
         <Pressable style={styles.btn} onPress={retry}>
-          <Text style={styles.btnText}>Retry</Text>
+          <Text style={styles.btnText}>{t('Retry')}</Text>
         </Pressable>
       </View>
     );

@@ -2,7 +2,8 @@ import { SymbolView } from 'expo-symbols';
 import { Tabs } from 'expo-router';
 import { View } from 'react-native';
 
-import { theme } from '@/src/theme';
+import { t } from '@/src/i18n';
+import { alpha, theme } from '@/src/theme';
 
 type IconSpec = { ios: any; android: any; web: any };
 
@@ -13,7 +14,7 @@ function TabIcon({ spec, color, focused }: { spec: IconSpec; color: any; focused
         paddingHorizontal: 16,
         paddingVertical: 4,
         borderRadius: 999,
-        backgroundColor: focused ? 'rgba(198,255,61,0.14)' : 'transparent',
+        backgroundColor: focused ? alpha(theme.accent, 0.14) : 'transparent',
       }}>
       <SymbolView name={spec} tintColor={color} size={24} />
     </View>
@@ -45,35 +46,35 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Workout',
+          title: t('Workout'),
           tabBarIcon: icon({ ios: 'dumbbell.fill', android: 'fitness_center', web: 'fitness_center' }),
         }}
       />
       <Tabs.Screen
         name="plans"
         options={{
-          title: 'Plans',
+          title: t('Plans'),
           tabBarIcon: icon({ ios: 'square.stack.3d.up.fill', android: 'view_agenda', web: 'view_agenda' }),
         }}
       />
       <Tabs.Screen
         name="history"
         options={{
-          title: 'History',
+          title: t('History'),
           tabBarIcon: icon({ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }),
         }}
       />
       <Tabs.Screen
         name="exercises"
         options={{
-          title: 'Exercises',
+          title: t('Exercises'),
           tabBarIcon: icon({ ios: 'list.bullet', android: 'list', web: 'list' }),
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Settings',
+          title: t('Settings'),
           tabBarIcon: icon({ ios: 'gearshape.fill', android: 'settings', web: 'settings' }),
         }}
       />

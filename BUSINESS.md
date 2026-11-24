@@ -4,7 +4,7 @@ Product memory for AI assistants and developers: what the app is for, what it do
 feature, and what was decided. Keep these rules when changing features. Technical details are in
 [TECHNOLOGY.md](TECHNOLOGY.md).
 
-_Last updated: 2026-11-24 · current release v1.0.9._
+_Last updated: 2026-11-24 · current release v1.1.0._
 
 ---
 
@@ -36,8 +36,8 @@ under your account, so it survives a lost phone and is the same on every device.
   - Big **▶ Start training** button (then "Continue: <exercise>") opens the training screen on the first exercise
     with sets left; tapping any exercise opens its training screen. All weights and reps are entered there.
   - When every set is done the list says so and *Finish workout* becomes the main button.
-  - **Rest timer** starts after every ticked set and fills the whole screen (big countdown ring, Skip button at the bottom; tapping anywhere also goes to the next set): default **1 minute**, −15 / +15 seconds, **Skip rest**; shows what's next
-    ("Rest · next: Squat"); vibrates when rest is over. Length is a setting (Off, 1:00, 1:30, 2:00, 3:00), saved to the account.
+  - **Rest timer** starts after every ticked set and fills the whole screen (big countdown ring, Skip button at the bottom; tapping anywhere also goes to the next set): default **1 minute**, −15 / +15 seconds, **Skip rest**; under the countdown an "Up next" card names the next set (exercise, "Set 2 of 3 · Working set") or the next exercise (name, sets left, muscle group) or "Finish workout"; sizes adapt to the screen;
+    vibrates when rest is over and closes 3 s later. Length is a setting (Off, 1:00, 1:30, 2:00, 3:00), saved to the account.
   - *Finish workout*: unticked sets are removed; if nothing was ticked the workout is discarded. Shows a summary
     (duration · exercises · sets · weight lifted).
   - *Discard workout* deletes it. Only one workout can be in progress.
@@ -47,10 +47,10 @@ under your account, so it survives a lost phone and is the same on every device.
   then its sets as chips (W / 1 / 2 / D, ✓ when done) — tap any chip, or ‹ ›, to move between sets.
 - The **current set card** shows: "Set 2 of 4", its type from the plan (tap to change), what you did last time,
   big weight and reps boxes with − / + (2.5 kg or 5 lb, 1 rep), and **✓ Done**.
-- **Weight and reps always start empty** (the plan is a grey hint, "Goal: 25 kg × 10 reps"); Done asks for them until you type them
-  (weight may stay empty only when the plan has no weight, e.g. bodyweight),
-  so history only holds numbers you really entered. − / + on an empty box starts at the goal.
-- Done → next set + rest timer. The button says what comes next: "Done · next set", "Done · next: Squat", "Done · finish workout".
+- **Weight and reps always start at 0** (no hints; tapping a box selects the 0 so typing replaces it); Done asks for them until you enter them
+  (weight may stay 0 only when the plan has no weight, e.g. bodyweight),
+  so history only holds numbers you really entered. − / + count from 0.
+- Done → next set + rest timer. The button says "Done · next set", or just "Done" on the last set of an exercise.
 - **After the last set of an exercise it moves to the next exercise automatically**; after the last exercise it goes back
   to the workout list to tap *Finish workout*. The rest timer keeps running across these screens.
 - Under the set card: **your last 3 sessions** of this exercise (fewer if you've done it fewer times, hidden if never),
@@ -81,8 +81,19 @@ under your account, so it survives a lost phone and is the same on every device.
 - Deleting an exercise deletes its logged sets, plan entries and videos.
 
 ### Settings
-- Account (email, sign out), weight unit **kg / lb** (stored in kg, shown in your unit), rest timer length,
-  backup export (JSON file) / import (replaces all data).
+Top to bottom: **Language** (English / العربية), **Appearance** (Auto / Dark / Light), weight unit **kg / lb**
+(stored in kg, shown in your unit), rest timer length, backup export (JSON file) / import (replaces all data),
+**Account** at the bottom (Sign out, with the email under it), then the logo and version.
+- No "cloud / server" info is shown to the user.
+
+### Language & appearance (since v1.1.0)
+- **English and Arabic.** Default = the phone's language. Arabic switches the whole layout to right-to-left.
+  Exercise and plan names are the user's own data and are not translated. kg / lb stay as is.
+- **Light and dark mode.** Default (**Auto**) = the phone's dark/light setting; Dark or Light can be fixed in Settings.
+- Language and appearance are saved **on the phone** (not in the account) and the app restarts to apply them.
+- The **logo changes with the theme** (white/lime on dark, dark/green on light): sign-in screen and Settings.
+  The splash screen follows the phone's mode. The home-screen icon stays dark (Android can't switch it).
+- The sign-in screen has quick switches for language and light/dark at the top.
 
 ## 4. Definitions
 - **Volume** = reps × weight, warm-ups excluded.
@@ -104,11 +115,15 @@ under your account, so it survives a lost phone and is the same on every device.
 | 1.0.2 | 2026-11-24 | Account required (no guest); auto-advance to next exercise; rest default 1 min + Skip; clear kg/reps history |
 | 1.0.3 | 2026-11-24 | Plan every set (type, weight, reps) before training; full exercise names; no letter tiles on exercises |
 | 1.0.4 | 2026-11-24 | Training screen: workout opens on the first exercise, one set at a time, auto-moves to the next exercise |
-| 1.0.5 | 2026-11-24 | Workout list is overview-only with "Start training"; training screen shows your last 3 sessions; GymTrack logo as app icon and splash |
+| 1.0.5 | 2026-11-24 | Workout list is overview-only with "Start training"; training screen shows your last 3 sessions; GymTrack logo and name |
 | 1.0.6 | 2026-11-24 | Full-screen rest timer after Done, with a big Skip button |
 | 1.0.7 | 2026-11-24 | Tap anywhere on the rest timer to go to the next set |
 | 1.0.8 | 2026-11-24 | Reps box always starts empty (plan shown as a hint); Done needs typed reps so history is accurate |
 | 1.0.9 | 2026-11-24 | Weight box also starts empty (plan shown as a hint); Done needs the weight unless bodyweight |
+| 1.0.10 | 2026-11-24 | No hints in the weight/reps boxes; logo recoloured for the dark theme (dark background, neon lime) |
+| 1.0.11 | 2026-11-24 | Weight and reps boxes start at 0 |
+| 1.0.12 | 2026-11-24 | Last set button just says "Done"; rest screen shows the next set/exercise under the timer; responsive rest screen |
+| 1.1.0 | 2026-11-24 | Arabic + English (right-to-left), light / dark / auto mode, logo follows the theme, Settings reorganised (sign out at the bottom) |
 
 APKs are built locally (`E:\GymApp\GymTrack-<version>.apk`) and installed by sideloading over the previous version.
 Not on Google Play yet.
@@ -116,4 +131,4 @@ Not on Google Play yet.
 ## 7. Ideas not done yet
 - Rest-timer notification when the app is in the background.
 - Google Play release (real signing key, AAB).
-- Smaller phone-only APK.
+- Home-screen icon that follows light/dark mode.

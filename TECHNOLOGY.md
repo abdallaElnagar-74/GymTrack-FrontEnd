@@ -4,7 +4,7 @@ Technical memory for AI assistants and developers: how the mobile app and the ba
 run, tested and shipped, plus the traps already hit. Read this before changing code.
 Product rules and features are in [BUSINESS.md](BUSINESS.md).
 
-_Last updated: 2026-11-24 · app v1.0.9 (versionCode 10)._
+_Last updated: 2026-11-24 · app v1.1.0 (versionCode 14)._
 
 ---
 
@@ -69,7 +69,12 @@ src/api/                  backend access
   legacy.ts, legacyWire.ts  one-time upload of the old on-phone SQLite DB (pre-cloud versions)
   storage.ts / storage.web.ts  kv store (native / web)
 src/db/queries.ts         typed functions for every backend endpoint (+ types: Workout, WorkoutSet, PlannedSet…)
-src/components/           RestTimer, PlanSetsEditor, ExercisePicker, ExerciseVideos, AccountForm, WorkoutTimer, ui.tsx
+src/components/           RestTimer, PlanSetsEditor, ExercisePicker, ExerciseVideos, AccountForm, WorkoutTimer, Logo,
+                          PrefToggles (language / appearance switches), ui.tsx
+src/i18n/index.ts         t(), plural(), lang, isRTL, locale, setLanguage(), setMode(), syncDirection()
+src/i18n/ar.ts            Arabic dictionary keyed by the English text
+src/theme.ts              dark + light palettes; `mode` / `modeChoice` chosen at start-up; alpha() helper
+src/prefStore.ts / .web.ts  synchronous device prefs (expo-sqlite/kv-store; localStorage on web)
 src/hooks/useScreenData.tsx  per-tab loading/error/pull-to-refresh state
 src/hooks/useRest.ts      shared rest countdown (module store + useSyncExternalStore) so it survives screen changes
 src/utils/                format (kg/lb), feedback (haptic + reportError), confirm/notify, setKind, oneRepMax, youtube, videoFiles
@@ -83,6 +88,9 @@ src/UnitContext.tsx       account settings: unit + restSeconds (stored on the se
 - Env vars are read when Metro starts: after changing them run `npx expo start --clear`.
 - `app.json`: name "GymTrack" (renamed from "Gym Tracker" in 1.0.5; package id unchanged so updates install over old versions), package `com.gymtracker.app`, dark UI, portrait. Bump `expo.version` and
   `expo.android.versionCode` for every APK so it installs over the previous one.
+- Icons: `assets/images/logo-source.png` is the original logo (white background). `node scripts/make-icons.js`
+  recolours it and writes the app icon + adaptive icon + favicon (dark theme, bg #0a0b0f) and the transparent in-app
+  logos `logo-on-dark.png` / `logo-on-light.png` (also used by the light/dark splash in `app.json`). Then prebuild with `--clean`.
 - `android/` and `ios/` are generated (CNG, git-ignored). Never edit by hand; use `app.json` / config plugins
   (`plugins/withCmakeVersion`).
 
@@ -124,6 +132,16 @@ cd android && NODE_ENV=production ./gradlew assembleRelease   # ~7-10 min
   debounced-edit / `inFlight` pattern as the workout list and flushes before navigating.
 - New routes need the dev server to regenerate typed routes (`.expo/types/router.d.ts`) before `tsc` accepts them.
 - Errors: `reportError(e)` (skips connection/5xx/401, which the session already reports).
+- **Language & theme are fixed for the app's lifetime**: `src/theme.ts` and `src/i18n` read device prefs
+  synchronously at module load (before any `StyleSheet.create`). Changing them saves the pref and calls
+  `reloadAppAsync()` from `expo` (works in release builds). Arabic also calls `I18nManager.forceRTL`
+  (`syncDirection()` in the root layout fixes a mismatch at start-up). Theme default = `Appearance.getColorScheme()`
+  (`app.json` `userInterfaceStyle: "automatic"`).
+- **All user-visible text goes through `t('English text', vars)`** (or `plural(n, one, other)`), and every key needs an
+  entry in `src/i18n/ar.ts` (missing keys fall back to English). Translate muscle groups with `t(group)`;
+  never translate exercise/plan names. Server error messages are passed through `t()` too.
+- **Never hardcode colours**: use `theme.*` and `alpha(theme.x, a)`. Styles must not use `letterSpacing` in Arabic
+  (it breaks letter joining): write `letterSpacing: isRTL ? 0 : 1`. Swap ‹ › chevrons with `isRTL`.
 
 ### Gotchas already hit (mobile)
 - **Metro on this Windows PC sometimes serves a stale bundle** (file changes not picked up). If a change "doesn't show",

@@ -27,6 +27,7 @@ import { useUnit } from '@/src/UnitContext';
 import { formatShortDate, toDisplay } from '@/src/utils/format';
 import { kindInfo, setLabels } from '@/src/utils/setKind';
 import { deleteVideoFile } from '@/src/utils/videoFiles';
+import { isRTL, t } from '@/src/i18n';
 
 // Heaviest set of a session, ignoring warm-ups (falls back to all sets if only warm-ups were logged).
 function topWeight(sets: { kind: string; weight_kg: number }[]) {
@@ -85,16 +86,16 @@ export default function ExerciseDetail() {
       await updateExercise(api, exercise.id, name, exercise.muscle_group);
       await load();
     } catch {
-      notify('Already exists', 'An exercise with that name already exists.');
+      notify(t('Already exists'), t('An exercise with that name already exists.'));
     }
   };
 
   const onDelete = () => {
     if (!exercise) return;
     confirm(
-      'Delete exercise?',
-      'Its logged sets will be deleted from your history too.',
-      'Delete',
+      t('Delete exercise?'),
+      t('Its logged sets will be deleted from your history too.'),
+      t('Delete'),
       async () => {
         for (const v of videos) if (v.source === 'file') deleteVideoFile(v.url);
         await deleteExercise(api, exercise.id);
@@ -134,22 +135,22 @@ export default function ExerciseDetail() {
             // Long names wrap onto a second line instead of scrolling out of view; Enter saves.
             multiline
             submitBehavior="blurAndSubmit"
-            accessibilityLabel="Exercise name"
+            accessibilityLabel={t('Exercise name')}
           />
-          <Pill text={exercise.muscle_group} color={color} />
+          <Pill text={t(exercise.muscle_group)} color={color} />
         </View>
       </View>
 
-      <SectionTitle>Personal records 🏆</SectionTitle>
+      <SectionTitle>{t('Personal records 🏆')}</SectionTitle>
       <View style={styles.recRow}>
-        <StatTile value={has ? `${toDisplay(records!.maxWeight, unit)}` : '—'} label={`Max weight (${unit})`} color={theme.gold} />
-        <StatTile value={has ? `${Math.round(toDisplay(records!.best1RM, unit))}` : '—'} label={`Est. 1RM (${unit})`} color={theme.gold} />
-        <StatTile value={String(history.length)} label="Sessions" />
+        <StatTile value={has ? `${toDisplay(records!.maxWeight, unit)}` : '—'} label={t('Max weight ({unit})', { unit })} color={theme.gold} />
+        <StatTile value={has ? `${Math.round(toDisplay(records!.best1RM, unit))}` : '—'} label={t('Est. 1RM ({unit})', { unit })} color={theme.gold} />
+        <StatTile value={String(history.length)} label={t('Sessions')} />
       </View>
 
       {chartData.length >= 2 && (
         <>
-          <SectionTitle>Top weight progress ({unit})</SectionTitle>
+          <SectionTitle>{t('Top weight progress ({unit})', { unit })}</SectionTitle>
           <View style={styles.chart}>
             <LineChart
               data={chartData}
@@ -180,10 +181,10 @@ export default function ExerciseDetail() {
         </>
       )}
 
-      <SectionTitle>History</SectionTitle>
+      <SectionTitle>{t('History')}</SectionTitle>
       {history.length === 0 && (
         <View style={styles.empty}>
-          <Text style={styles.muted}>No sets logged yet. Add this exercise to a workout to start tracking.</Text>
+          <Text style={styles.muted}>{t('No sets logged yet. Add this exercise to a workout to start tracking.')}</Text>
         </View>
       )}
       {history.map((s) => {
@@ -193,13 +194,13 @@ export default function ExerciseDetail() {
             <View style={styles.cardTop}>
               <Text style={styles.cardDate}>{formatShortDate(s.date)}</Text>
               <Text style={styles.cardTopW}>
-                Top {toDisplay(top, unit)} {unit}
+                {t('Top {w} {unit}', { w: toDisplay(top, unit), unit })}
               </Text>
             </View>
             <View style={styles.histHead}>
-              <Text style={[styles.histHeadText, styles.histSet]}>SET</Text>
-              <Text style={[styles.histHeadText, styles.histVal]}>WEIGHT ({unit.toUpperCase()})</Text>
-              <Text style={[styles.histHeadText, styles.histVal]}>REPS</Text>
+              <Text style={[styles.histHeadText, styles.histSet]}>{t('SET')}</Text>
+              <Text style={[styles.histHeadText, styles.histVal]}>{t('WEIGHT ({unit})', { unit: unit.toUpperCase() })}</Text>
+              <Text style={[styles.histHeadText, styles.histVal]}>{t('REPS')}</Text>
             </View>
             {s.sets.map((x, i, all) => {
               const special = x.kind !== 'normal';
@@ -215,7 +216,7 @@ export default function ExerciseDetail() {
                     {toDisplay(x.weight_kg, unit)} <Text style={styles.histUnit}>{unit}</Text>
                   </Text>
                   <Text style={[styles.histVal, styles.histNum]}>
-                    {x.reps} <Text style={styles.histUnit}>{x.reps === 1 ? 'rep' : 'reps'}</Text>
+                    {x.reps} <Text style={styles.histUnit}>{x.reps === 1 ? t('rep') : t('reps')}</Text>
                   </Text>
                 </View>
               );
@@ -224,7 +225,7 @@ export default function ExerciseDetail() {
         );
       })}
 
-      <Button title="Delete exercise" variant="danger" onPress={onDelete} style={{ marginTop: 20 }} />
+      <Button title={t('Delete exercise')} variant="danger" onPress={onDelete} style={{ marginTop: 20 }} />
     </ScrollView>
   );
 }
@@ -255,7 +256,7 @@ const styles = StyleSheet.create({
   cardDate: { color: theme.text, fontWeight: '700' },
   cardTopW: { color: theme.accent, fontWeight: '700', fontSize: 13 },
   histHead: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, marginBottom: 4 },
-  histHeadText: { color: theme.faint, fontSize: 11, fontWeight: '800', letterSpacing: 0.8 },
+  histHeadText: { color: theme.faint, fontSize: 11, fontWeight: '800', letterSpacing: isRTL ? 0 : 0.8 },
   histRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 6, borderRadius: 8 },
   histRowAlt: { backgroundColor: theme.cardAlt },
   histSet: { width: 44 },

@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApi } from '@/src/api/SessionContext';
 import { getExercises, type Exercise } from '../db/queries';
 import { MUSCLE_GROUPS } from '../db/seed';
+import { t } from '../i18n';
 import { groupColor, theme } from '../theme';
 import { GroupDot } from './ui';
 
@@ -52,7 +53,7 @@ export function ExercisePicker({
     <Modal visible={visible} animationType="slide" onRequestClose={close}>
       <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
         <View style={styles.top}>
-          <Text style={styles.title}>Add exercise</Text>
+          <Text style={styles.title}>{t('Add exercise')}</Text>
           <Pressable onPress={close} hitSlop={10} style={styles.closeBtn}>
             <Text style={styles.close}>✕</Text>
           </Pressable>
@@ -61,7 +62,7 @@ export function ExercisePicker({
           style={styles.search}
           value={q}
           onChangeText={setQ}
-          placeholder="Search exercises…"
+          placeholder={t('Search exercises…')}
           placeholderTextColor={theme.faint}
         />
         <View style={styles.filters}>
@@ -73,7 +74,7 @@ export function ExercisePicker({
                 key={g ?? 'all'}
                 onPress={() => setFilter(g)}
                 style={[styles.filter, active && { backgroundColor: c + '26', borderColor: c }]}>
-                <Text style={[styles.filterText, active && { color: c }]}>{g ?? 'All'}</Text>
+                <Text style={[styles.filterText, active && { color: c }]}>{g ? t(g) : t('All')}</Text>
               </Pressable>
             );
           })}
@@ -83,7 +84,7 @@ export function ExercisePicker({
           keyExtractor={(e) => String(e.id)}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
-          ListEmptyComponent={<Text style={styles.empty}>No exercises found. Add one in the Exercises tab.</Text>}
+          ListEmptyComponent={<Text style={styles.empty}>{t('No exercises found. Add one in the Exercises tab.')}</Text>}
           renderItem={({ item }) => (
             <Pressable
               style={({ pressed }) => [styles.item, pressed && { backgroundColor: theme.cardAlt }]}
@@ -91,7 +92,7 @@ export function ExercisePicker({
               <GroupDot group={item.muscle_group} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.itemName}>{item.name}</Text>
-                <Text style={[styles.itemGroup, { color: groupColor(item.muscle_group) }]}>{item.muscle_group}</Text>
+                <Text style={[styles.itemGroup, { color: groupColor(item.muscle_group) }]}>{t(item.muscle_group)}</Text>
               </View>
               <Text style={styles.plus}>+</Text>
             </Pressable>

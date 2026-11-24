@@ -1,6 +1,7 @@
 import { Platform, Vibration } from 'react-native';
 
 import { ApiError } from '../api/http';
+import { t } from '../i18n';
 import { notify } from './confirm';
 
 /**
@@ -18,7 +19,7 @@ export const haptic = {
  * Tell the user an action failed. Connection problems and server errors are already
  * reported by the session (once every few seconds), so they're not shown twice.
  */
-export function reportError(e: unknown, title = 'Something went wrong') {
+export function reportError(e: unknown, title = t('Something went wrong')) {
   if (e instanceof ApiError && (e.status === 0 || e.status === 401 || e.status >= 500)) return;
-  notify(title, e instanceof Error ? e.message : String(e));
+  notify(title, t(e instanceof Error ? e.message : String(e)));
 }
