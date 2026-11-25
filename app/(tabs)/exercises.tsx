@@ -16,7 +16,7 @@ import { TechniquesEditor } from '@/src/components/TechniquesEditor';
 import { useUnit } from '@/src/UnitContext';
 import { techniqueName } from '@/src/utils/techniques';
 import { alpha, groupColor, theme } from '@/src/theme';
-import { plural, t } from '@/src/i18n';
+import { isRTL, plural, t } from '@/src/i18n';
 
 /**
  * The account's training techniques (warm-up, drop set and your own), each with a YouTube video.
@@ -32,16 +32,22 @@ function TechniquesSection() {
         onPress={() => setOpen((o) => !o)}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
-        style={({ pressed }) => [styles.techHead, pressed && { opacity: 0.75 }]}>
-        <Text style={styles.techIcon}>▶</Text>
-        <View style={{ flex: 1 }}>
+        style={({ pressed }) => [styles.techHead, open && styles.techHeadOpen, pressed && { opacity: 0.75 }]}>
+        <View style={styles.techIcon}>
+          <Text style={styles.techIconText}>▶</Text>
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.techTitle}>{t('Techniques')}</Text>
-          <Text style={styles.techSub} numberOfLines={2}>
-            {techniques.map((tq) => `${techniqueName(tq)}${tq.link ? ' ▶' : ''}`).join('  ·  ')}
+          <Text style={styles.techSub} numberOfLines={1}>
+            {techniques.map(techniqueName).join(isRTL ? '، ' : ', ')}
+          </Text>
+          <Text style={styles.techMeta}>
+            {plural(techniques.length, '1 technique', '{n} techniques')} · {plural(count, '1 video', '{n} videos')}
           </Text>
         </View>
-        <Text style={styles.techCount}>{plural(count, '1 video', '{n} videos')}</Text>
-        <Text style={styles.techChev}>{open ? '▲' : '▼'}</Text>
+        <View style={styles.techToggle}>
+          <Text style={styles.techToggleText}>{open ? '▲' : '▼'}</Text>
+        </View>
       </Pressable>
       {open && <TechniquesEditor />}
     </View>
@@ -184,7 +190,6 @@ export default function ExercisesScreen() {
                 <Button title={t('Save exercise')} onPress={onAdd} disabled={!name.trim()} />
               </View>
             )}
-            <TechniquesSection />
             <View style={styles.searchBox}>
               <Text style={styles.searchIcon}>⌕</Text>
               <TextInput
@@ -202,6 +207,8 @@ export default function ExercisesScreen() {
                 </Pressable>
               ) : null}
             </View>
+            {/* Hidden while searching, so the results come straight under the search box. */}
+            {!q.trim() && <TechniquesSection />}
           </View>
         }
         renderSectionHeader={({ section }) => (
@@ -234,22 +241,40 @@ export default function ExercisesScreen() {
 }
 
 const styles = StyleSheet.create({
-  tech: { marginTop: 12, gap: 10 },
+  tech: { marginTop: 14, gap: 10 },
   techHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
     backgroundColor: theme.card,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: theme.border,
-    padding: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
   },
-  techIcon: { color: theme.gold, fontSize: 18, fontWeight: '900' },
+  techHeadOpen: { borderColor: alpha(theme.gold, 0.45) },
+  techIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: alpha(theme.gold, 0.15),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  techIconText: { color: theme.gold, fontSize: 17, fontWeight: '900' },
   techTitle: { color: theme.text, fontSize: 16, fontWeight: '800' },
-  techSub: { color: theme.muted, fontSize: 12, marginTop: 2 },
-  techCount: { color: theme.accent, fontWeight: '800', fontSize: 13 },
-  techChev: { color: theme.faint, fontSize: 11 },
+  techSub: { color: theme.muted, fontSize: 13, marginTop: 2 },
+  techMeta: { color: theme.faint, fontSize: 12, marginTop: 2 },
+  techToggle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: theme.cardAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  techToggleText: { color: theme.muted, fontSize: 10 },
   addBtn: {
     width: 44,
     height: 44,
@@ -306,6 +331,7 @@ const styles = StyleSheet.create({
   },
   chipText: { color: theme.muted, fontSize: 13, fontWeight: '600' },
   searchBox: {
+    marginTop: 6,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: theme.card,

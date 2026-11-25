@@ -4,7 +4,7 @@ Product memory for AI assistants and developers: what the app is for, what it do
 feature, and what was decided. Keep these rules when changing features. Technical details are in
 [TECHNOLOGY.md](TECHNOLOGY.md).
 
-_Last updated: 2026-11-25 · current release v1.2.7._
+_Last updated: 2026-11-25 · current release v1.2.8._
 
 ---
 
@@ -69,13 +69,13 @@ under your account, so it survives a lost phone and is the same on every device.
   only" / "Drop set" (no long explanations; decided with the user) — plus the set's note from the plan ("📝 drop 20%").
 - **Techniques** (since v1.2.6; decided with the user: a **shared list**, all set up from the Exercises tab, **nothing in
   the plan**):
-  - **Exercises tab → Techniques** (folded): *Warm-up* and *Drop set* are always there; **+ Add technique** adds your
-    own (name + optional YouTube link, e.g. Rest-pause, Superset), ✕ deletes it. Saved to the account when a field is
-    left; only YouTube links are saved.
+  - **Exercises tab → Techniques** (folded card under the search box; hidden while searching, v1.2.8): *Warm-up* and *Drop set* are always there; **+ Add technique** adds your
+    own (name + optional YouTube link, e.g. Rest-pause, Superset), ✕ deletes it. Saved to the account with the **Save** button
+    (v1.2.7); only YouTube links are saved.
   - **Exercise screen → Techniques:** tick which techniques this exercise uses (Warm-up isn't offered: it's a set type).
   - **The note:** an exercise with techniques shows, in gold, **"ملحوظة: يحتوي هذا التمرين على مجموعة دروب سيت"**
     ("Note: this exercise includes a drop set", several joined with "،") under its name in the plan editor, the workout
-    list and the training screen; the Plans tab adds "Techniques: <exercise names>" per day. *Drop set* is included
+    list and the training screen; not on the Plans tab (removed in v1.2.8 at the user's request). *Drop set* is included
     automatically when the exercise has drop sets in the plan/workout, even if not ticked.
   - **Videos:** the training screen shows a ▶ button per technique with a video; a warm-up / drop set's card shows
     **▶ Watch how on YouTube** with the Warm-up / Drop set video. Videos open **outside the app** (YouTube app or browser).
@@ -175,6 +175,7 @@ Top to bottom: **Language** (English / العربية), **Appearance** (Auto / D
 | 1.2.5 | 2026-11-25 | Technique videos moved to the Exercises tab (one YouTube link for warm-up / drop sets, for every exercise); no YouTube field in the plan |
 | 1.2.6 | 2026-11-25 | Techniques list in the Exercises tab (Warm-up, Drop set + your own, each with a YouTube video); tick them on an exercise; gold note "Note: this exercise includes a drop set" in plans, workout list and training |
 | 1.2.7 | 2026-11-25 | Save button everywhere you type (plan editor, exercise screen, techniques); "Discard changes?" when leaving unsaved edits |
+| 1.2.8 | 2026-11-25 | Exercises tab: search on top, cleaner Techniques card (hidden while searching); no "Techniques" line on the Plans tab |
 
 APKs are built locally (`E:\GymApp\GymTrack-<version>.apk`) and installed by sideloading over the previous version.
 Not on Google Play yet.

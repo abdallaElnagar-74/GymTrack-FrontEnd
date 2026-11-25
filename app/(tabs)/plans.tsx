@@ -3,15 +3,12 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { router } from 'expo-router';
 import { useApi } from '@/src/api/SessionContext';
 
-import { useUnit } from '@/src/UnitContext';
-import { exerciseTechniques } from '@/src/utils/techniques';
 import { Arrow, Button, LoadError, Loading, ScreenHeader, SectionTitle } from '@/src/components/ui';
 import { useScreenData } from '@/src/hooks/useScreenData';
 import {
   createRoutine,
   createRoutineFromTemplate,
   getRoutinesFull,
-  plannedSetsOf,
   type RoutineFull,
 } from '@/src/db/queries';
 import { PLAN_TEMPLATES, type PlanTemplate } from '@/src/db/templates';
@@ -24,7 +21,6 @@ import { plural, t } from '@/src/i18n';
 
 export default function PlansScreen() {
   const api = useApi();
-  const { techniques } = useUnit();
   const [plans, setPlans] = useState<RoutineFull[]>([]);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
@@ -138,17 +134,6 @@ export default function PlansScreen() {
                       ? d.exercises.map((e) => e.name).join(', ')
                       : t('No exercises')}
                   </Text>
-                  {/* Which exercises of this day use a technique (drop set…), without opening the plan. */}
-                  {(() => {
-                    const withTech = d.exercises.filter(
-                      (e) => exerciseTechniques(techniques, e.technique_ids, plannedSetsOf(e)).length > 0
-                    );
-                    return withTech.length ? (
-                      <Text style={styles.dropLine} numberOfLines={2}>
-                        {t('Techniques: {names}', { names: withTech.map((e) => e.name).join(', ') })}
-                      </Text>
-                    ) : null;
-                  })()}
                 </View>
               </View>
             ))}
@@ -244,7 +229,6 @@ const styles = StyleSheet.create({
   dayName: { color: theme.text, fontSize: 15, fontWeight: '700' },
   nextTag: { color: theme.accent, fontSize: 11, fontWeight: '800' },
   dayEx: { color: theme.faint, fontSize: 12, marginTop: 2 },
-  dropLine: { color: theme.gold, fontSize: 12, fontWeight: '700', marginTop: 3 },
   tpl: {
     flexDirection: 'row',
     alignItems: 'center',
