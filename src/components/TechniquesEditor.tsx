@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { Technique } from '@/src/db/queries';
 import { isRTL, t } from '@/src/i18n';
 import { alpha, theme } from '@/src/theme';
 import { useUnit } from '@/src/UnitContext';
-import { reportError } from '@/src/utils/feedback';
+import { Button } from '@/src/components/ui';
+import { notify } from '@/src/utils/confirm';
 import { isBuiltin, newTechniqueId, techniqueName } from '@/src/utils/techniques';
 import { parseYouTube } from '@/src/utils/youtube';
 
@@ -14,13 +15,12 @@ const badLink = (s: string) => s.trim() !== '' && !parseYouTube(s);
 
 /**
  * The account's techniques (Exercises tab): Warm-up and Drop set always, plus your own
- * (rest-pause, superset…), each with an optional YouTube video. Saved when a field is left;
- * a new technique is saved once it has a name. Each exercise ticks which ones it uses.
+ * (rest-pause, superset…), each with an optional YouTube video. Nothing is saved until Save;
+ * every technique needs a name and links must be YouTube. Each exercise ticks which ones it uses.
  */
 export function TechniquesEditor() {
   const { techniques, setTechniques } = useUnit();
   const [rows, setRows] = useState<Technique[]>(techniques);
-  const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   // The list may arrive after this opens (settings still loading).
   const [seen, setSeen] = useState(techniques);
@@ -29,25 +29,21 @@ export function TechniquesEditor() {
     setRows(techniques);
   }
 
-  /** Only complete rows are sent: custom ones need a name, links must be YouTube. */
-  const toSave = (list: Technique[]) =>
-    list
-      .filter((r) => isBuiltin(r.id) || r.name.trim())
-      .map((r) => ({ ...r, name: r.name.trim(), link: badLink(r.link) ? '' : r.link.trim() }));
+  const clean = (list: Technique[]) => list.map((r) => ({ ...r, name: r.name.trim(), link: r.link.trim() }));
+  // A new row left completely empty doesn't count as a change.
+  const typed = rows.filter((r) => isBuiltin(r.id) || r.name.trim() || r.link.trim());
+  const dirty = JSON.stringify(clean(typed)) !== JSON.stringify(clean(techniques));
 
-  const save = async (list: Technique[]) => {
-    const next = toSave(list);
-    if (JSON.stringify(next) === JSON.stringify(toSave(techniques))) return;
-    setBusy(true);
-    setSaved(false);
-    try {
-      await setTechniques(next);
-      setSaved(true);
-    } catch (e) {
-      reportError(e);
-    } finally {
-      setBusy(false);
+  /** Save button: checks every row, then replaces the list on the server. */
+  const save = async () => {
+    if (typed.some((r) => !isBuiltin(r.id) && !r.name.trim())) {
+      return notify(t('Name is required'), t('Give each technique a name.'));
     }
+    if (typed.some((r) => badLink(r.link))) {
+      return notify(t('Not a YouTube link'), t('Paste a link like youtube.com/watch?v=… or youtu.be/…'));
+    }
+    await setTechniques(clean(typed)); // errors are shown by the button
+    setSaved(true);
   };
 
   const change = (i: number, patch: Partial<Technique>) => {
@@ -56,12 +52,14 @@ export function TechniquesEditor() {
   };
 
   const remove = (i: number) => {
-    const next = rows.filter((_, j) => j !== i);
-    setRows(next);
-    save(next);
+    setSaved(false);
+    setRows((prev) => prev.filter((_, j) => j !== i));
   };
 
-  const add = () => setRows((prev) => [...prev, { id: newTechniqueId(), name: '', link: '' }]);
+  const add = () => {
+    setSaved(false);
+    setRows((prev) => [...prev, { id: newTechniqueId(), name: '', link: '' }]);
+  };
 
   return (
     <View style={styles.card}>
@@ -82,7 +80,6 @@ export function TechniquesEditor() {
                   style={[styles.input, styles.nameInput]}
                   value={r.name}
                   onChangeText={(v) => change(i, { name: v })}
-                  onBlur={() => save(rows)}
                   placeholder={t('Technique name (e.g. Rest-pause)')}
                   placeholderTextColor={theme.faint}
                   maxLength={60}
@@ -104,7 +101,6 @@ export function TechniquesEditor() {
               style={[styles.input, badLink(r.link) && { borderColor: theme.danger }]}
               value={r.link}
               onChangeText={(v) => change(i, { link: v })}
-              onBlur={() => save(rows)}
               placeholder={t('YouTube link (optional)')}
               placeholderTextColor={theme.faint}
               autoCapitalize="none"
@@ -125,12 +121,9 @@ export function TechniquesEditor() {
           style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.7 }]}>
           <Text style={styles.addText}>{t('+ Add technique')}</Text>
         </Pressable>
-        {busy ? (
-          <ActivityIndicator size="small" color={theme.accent} />
-        ) : saved ? (
-          <Text style={styles.saved}>{t('Saved ✓')}</Text>
-        ) : null}
+        {!dirty && saved ? <Text style={styles.saved}>{t('Saved ✓')}</Text> : null}
       </View>
+      {dirty && <Button title={t('Save')} icon="✓" onPress={save} />}
     </View>
   );
 }

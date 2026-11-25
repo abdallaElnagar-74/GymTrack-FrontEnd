@@ -29,7 +29,8 @@ import { useUnit } from '@/src/UnitContext';
 import { formatShortDate, toDisplay } from '@/src/utils/format';
 import { kindInfo, setLabels } from '@/src/utils/setKind';
 import { deleteVideoFile } from '@/src/utils/videoFiles';
-import { reportError } from '@/src/utils/feedback';
+import { ApiError } from '@/src/api/http';
+import { useUnsavedGuard } from '@/src/hooks/useUnsavedGuard';
 import { techniqueName } from '@/src/utils/techniques';
 import { isRTL, t } from '@/src/i18n';
 
@@ -84,26 +85,34 @@ export default function ExerciseDetail() {
     setVideos(await getExerciseVideos(api, id));
   };
 
-  const onSaveName = async () => {
-    if (!exercise || !name.trim() || name.trim() === exercise.name) return;
-    try {
-      await updateExercise(api, exercise.id, name, exercise.muscle_group);
-      await load();
-    } catch {
-      notify(t('Already exists'), t('An exercise with that name already exists.'));
-    }
-  };
+  // Techniques ticked but not saved yet (null = unchanged).
+  const [draftTech, setDraftTech] = useState<string[] | null>(null);
+  const savedTech = exercise?.technique_ids ?? [];
+  const tech = draftTech ?? savedTech;
+  const nameDirty = !!exercise && name.trim() !== exercise.name;
+  const techDirty =
+    draftTech != null && (draftTech.length !== savedTech.length || draftTech.some((x) => !savedTech.includes(x)));
+  const dirty = nameDirty || techDirty;
+  useUnsavedGuard(dirty);
 
-  // Shown at once, saved in the background (put back if saving fails).
-  const onToggleTechnique = (techniqueId: string) => {
+  const onToggleTechnique = (techniqueId: string) =>
+    setDraftTech(tech.includes(techniqueId) ? tech.filter((x) => x !== techniqueId) : [...tech, techniqueId]);
+
+  /** Save button: the name and the ticked techniques together. */
+  const onSave = async () => {
     if (!exercise) return;
-    const before = exercise.technique_ids ?? [];
-    const ids = before.includes(techniqueId) ? before.filter((x) => x !== techniqueId) : [...before, techniqueId];
-    setExercise({ ...exercise, technique_ids: ids });
-    setExerciseTechniques(api, id, ids).catch((e) => {
-      setExercise((ex) => ex && { ...ex, technique_ids: before });
-      reportError(e);
-    });
+    if (!name.trim()) return notify(t('Name is required'), t('Give the exercise a name.'));
+    try {
+      await Promise.all([
+        nameDirty ? updateExercise(api, exercise.id, name, exercise.muscle_group) : null,
+        techDirty ? setExerciseTechniques(api, id, tech) : null,
+      ]);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) return notify(t('Already exists'), t('An exercise with that name already exists.'));
+      throw e; // shown by the button
+    }
+    setDraftTech(null);
+    await load();
   };
 
   const onDelete = () => {
@@ -132,6 +141,7 @@ export default function ExerciseDetail() {
   const chartWidth = Math.min(width, 600) - 32 - 28 - 40;
 
   return (
+    <View style={{ flex: 1, backgroundColor: theme.bg }}>
     <ScrollView
       style={{ backgroundColor: theme.bg }}
       contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
@@ -145,10 +155,8 @@ export default function ExerciseDetail() {
             style={styles.nameInput}
             value={name}
             onChangeText={setName}
-            onEndEditing={onSaveName}
-            onBlur={onSaveName}
             returnKeyType="done"
-            // Long names wrap onto a second line instead of scrolling out of view; Enter saves.
+            // Long names wrap onto a second line instead of scrolling out of view; saved with Save.
             multiline
             submitBehavior="blurAndSubmit"
             accessibilityLabel={t('Exercise name')}
@@ -165,7 +173,7 @@ export default function ExerciseDetail() {
           {techniques
             .filter((tq) => tq.id !== 'warmup')
             .map((tq) => {
-              const on = (exercise.technique_ids ?? []).includes(tq.id);
+              const on = tech.includes(tq.id);
               return (
                 <Pressable
                   key={tq.id}
@@ -182,7 +190,7 @@ export default function ExerciseDetail() {
               );
             })}
         </View>
-        <TechniqueNote ids={exercise.technique_ids} videos />
+        <TechniqueNote ids={tech} videos />
       </View>
 
       <SectionTitle>{t('Personal records 🏆')}</SectionTitle>
@@ -271,6 +279,14 @@ export default function ExerciseDetail() {
 
       <Button title={t('Delete exercise')} variant="danger" onPress={onDelete} style={{ marginTop: 20 }} />
     </ScrollView>
+    {dirty && (
+      // Shown while the name or the ticked techniques aren't saved yet.
+      <View style={styles.saveBar}>
+        <Text style={styles.saveBarText}>{t('Unsaved changes')}</Text>
+        <Button title={t('Save')} icon="✓" onPress={onSave} style={{ flex: 1 }} />
+      </View>
+    )}
+    </View>
   );
 }
 
@@ -312,6 +328,18 @@ const styles = StyleSheet.create({
   histUnit: { color: theme.muted, fontSize: 12, fontWeight: '600' },
   empty: { backgroundColor: theme.card, borderRadius: 16, padding: 16 },
   muted: { color: theme.muted, lineHeight: 20 },
+  saveBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 18,
+    backgroundColor: theme.card,
+    borderTopWidth: 1,
+    borderTopColor: theme.border,
+  },
+  saveBarText: { color: theme.gold, fontWeight: '800', fontSize: 13 },
   techCard: { backgroundColor: theme.card, borderRadius: 16, padding: 14, gap: 12, borderWidth: 1, borderColor: theme.border },
   techChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   techChip: {

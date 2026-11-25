@@ -4,7 +4,7 @@ Product memory for AI assistants and developers: what the app is for, what it do
 feature, and what was decided. Keep these rules when changing features. Technical details are in
 [TECHNOLOGY.md](TECHNOLOGY.md).
 
-_Last updated: 2026-11-25 · current release v1.2.6._
+_Last updated: 2026-11-25 · current release v1.2.7._
 
 ---
 
@@ -98,7 +98,9 @@ under your account, so it survives a lost phone and is the same on every device.
   optional **note** (e.g. "drop 20%", max 120 characters). Up to 20 sets per exercise.
   - **Weight and reps are entered only inside each set while training** (they start at 0).
   - A new exercise in a day starts with the same set types as your last session of it, or working sets if never done.
-  - Changes save automatically; they are also saved before *Start*.
+  - **Nothing saves on its own (since v1.2.7):** typed changes (plan name, day names, set types / notes) wait for the
+    **Save** button in the "Unsaved changes" bar at the bottom; they are also saved before *Start*. Leaving with unsaved
+    changes asks "Discard changes?". Adding / removing / moving exercises and days are saved at once (they are buttons).
   - Starting the day creates the workout with exactly these sets, types and notes.
 - Templates: *Arnold Split*, *Upper / Lower* (days only; you choose the exercises). Using a template you already have opens it.
 - Deleting a plan or day keeps your workout history.
@@ -138,6 +140,9 @@ Top to bottom: **Language** (English / العربية), **Appearance** (Auto / D
 - **Week** starts Monday in the phone's time zone; **streak** = consecutive weeks with at least one workout.
 
 ## 5. UX principles (decided with the user)
+- **Explicit Save everywhere you type (since v1.2.7, decided with the user):** plan editor, exercise screen (name +
+  ticked techniques) and the Techniques list show an **Unsaved changes · Save** bar / Save button; nothing is saved on
+  leaving a field. Leaving a screen with unsaved changes asks "Discard changes?" (Discard / Keep editing).
 - Every tap gives feedback: spinners on buttons, "Saving workout…" overlays, no double taps.
 - Never show a misleading empty state while loading; show a retry screen if loading fails; pull to refresh everywhere.
 - Weight and reps must always be clearly labelled (units on values; no bare `10×60`).
@@ -169,6 +174,7 @@ Top to bottom: **Language** (English / العربية), **Appearance** (Auto / D
 | 1.2.4 | 2026-11-25 | Technique videos per exercise (warm-up / drop-set YouTube link used in every plan); ⚠ drop-set tag on exercises in plans and the workout list |
 | 1.2.5 | 2026-11-25 | Technique videos moved to the Exercises tab (one YouTube link for warm-up / drop sets, for every exercise); no YouTube field in the plan |
 | 1.2.6 | 2026-11-25 | Techniques list in the Exercises tab (Warm-up, Drop set + your own, each with a YouTube video); tick them on an exercise; gold note "Note: this exercise includes a drop set" in plans, workout list and training |
+| 1.2.7 | 2026-11-25 | Save button everywhere you type (plan editor, exercise screen, techniques); "Discard changes?" when leaving unsaved edits |
 
 APKs are built locally (`E:\GymApp\GymTrack-<version>.apk`) and installed by sideloading over the previous version.
 Not on Google Play yet.

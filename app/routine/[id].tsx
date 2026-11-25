@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useApi } from '@/src/api/SessionContext';
@@ -30,7 +30,7 @@ import {
 } from '@/src/db/queries';
 import { alpha, theme } from '@/src/theme';
 import { confirm, notify } from '@/src/utils/confirm';
-import { reportError } from '@/src/utils/feedback';
+import { useUnsavedGuard } from '@/src/hooks/useUnsavedGuard';
 import { isRTL, plural, t } from '@/src/i18n';
 
 export default function RoutineEditor() {
@@ -41,33 +41,10 @@ export default function RoutineEditor() {
   const [name, setName] = useState('');
   const [pickerDay, setPickerDay] = useState<string | null>(null);
   const [newDay, setNewDay] = useState('');
-  // Set editors with changes not saved yet; saved before starting a day.
-  const flushers = useRef(new Set<() => Promise<unknown>>());
-  const registerFlush = useCallback((f: () => Promise<unknown>) => {
-    flushers.current.add(f);
-    return () => {
-      flushers.current.delete(f);
-    };
-  }, []);
-
-  /** Save planned sets; the screen's totals update without reloading (which would reset typing). */
-  const savePlan = useCallback(
-    (dayExerciseId: string, sets: PlannedSet[]) =>
-      saveDayExercisePlan(api, dayExerciseId, sets)
-        .then(() =>
-          setPlan((p) =>
-            p && {
-              ...p,
-              days: p.days.map((d) => ({
-                ...d,
-                exercises: d.exercises.map((e) => (e.id === dayExerciseId ? { ...e, sets, target_sets: sets.length } : e)),
-              })),
-            }
-          )
-        )
-        .catch((e) => reportError(e, t('Couldn’t save the sets'))),
-    [api]
-  );
+  // Edits not saved yet (saved together with the Save button, or before Start): day names and
+  // planned sets, by id. Adding / removing / moving exercises and days are saved at once.
+  const [dayNames, setDayNames] = useState<Record<string, string>>({});
+  const [draftSets, setDraftSets] = useState<Record<string, PlannedSet[]>>({});
 
   const load = useCallback(async () => {
     try {
@@ -88,13 +65,33 @@ export default function RoutineEditor() {
     }, [load])
   );
 
+  const dayIds = new Set(plan?.days.map((d) => d.id));
+  const exIds = new Set(plan?.days.flatMap((d) => d.exercises.map((e) => e.id)));
+  // Only edits that still differ and whose day / exercise still exists count.
+  const nameEdits = Object.entries(dayNames).filter(
+    ([dayId, n]) => dayIds.has(dayId) && n.trim() !== plan?.days.find((d) => d.id === dayId)?.name
+  );
+  const setEdits = Object.entries(draftSets).filter(([deId]) => exIds.has(deId));
+  const dirty = !!plan && (name.trim() !== plan.name || nameEdits.length > 0 || setEdits.length > 0);
+  useUnsavedGuard(dirty);
+
   if (!plan) return <DetailState missing={missing} what="plan" />;
 
-  const saveName = async () => {
-    if (name.trim() && name.trim() !== plan.name) {
-      await renameRoutine(api, plan.id, name);
-      await load();
+  /** Saves every pending edit of this plan in one go. */
+  const saveAll = async () => {
+    if (!name.trim() || nameEdits.some(([, n]) => !n.trim())) {
+      notify(t('Name is required'), t('Give the plan and each day a name.'));
+      return false;
     }
+    await Promise.all([
+      name.trim() !== plan.name ? renameRoutine(api, plan.id, name) : null,
+      ...nameEdits.map(([dayId, n]) => renameDay(api, dayId, n)),
+      ...setEdits.map(([deId, sets]) => saveDayExercisePlan(api, deId, sets)),
+    ]);
+    setDayNames({});
+    setDraftSets({});
+    await load();
+    return true;
   };
 
   const onAddDay = async () => {
@@ -121,7 +118,8 @@ export default function RoutineEditor() {
       notify(t('No exercises'), t('Add exercises to this day first.'));
       return;
     }
-    await Promise.all([...flushers.current].map((f) => f()));
+    // Unsaved changes are saved first, so the workout uses them.
+    if (dirty && !(await saveAll())) return;
     const active = await getActiveWorkout(api);
     if (active) {
       notify(t('Workout in progress'), t('Finish or discard your current workout first.'));
@@ -156,8 +154,6 @@ export default function RoutineEditor() {
           style={styles.planName}
           value={name}
           onChangeText={setName}
-          onBlur={saveName}
-          onSubmitEditing={saveName}
           returnKeyType="done"
         />
 
@@ -167,10 +163,7 @@ export default function RoutineEditor() {
             day={d}
             index={i}
             isNext={d.id === plan.nextDayId}
-            onRename={async (n) => {
-              await renameDay(api, d.id, n);
-              await load();
-            }}
+            onRename={(n) => setDayNames((prev) => ({ ...prev, [d.id]: n }))}
             onDelete={() =>
               confirm(t('Delete day?'), t('Delete "{name}" from this plan?', { name: d.name }), t('Delete'), async () => {
                 await deleteDay(api, d.id);
@@ -182,8 +175,8 @@ export default function RoutineEditor() {
               await removeDayExercise(api, deId);
               await load();
             }}
-            onSavePlan={savePlan}
-            registerFlush={registerFlush}
+            draftSets={draftSets}
+            onChangeSets={(deId, sets) => setDraftSets((prev) => ({ ...prev, [deId]: sets }))}
             onMove={async (idx, dir) => {
               await moveDayExercise(api, d, idx, dir);
               await load();
@@ -208,6 +201,13 @@ export default function RoutineEditor() {
 
         <Button title={t('Delete plan')} variant="danger" onPress={onDeletePlan} style={{ marginTop: 30 }} />
       </ScrollView>
+      {dirty && (
+        // Shown while something typed isn't saved yet.
+        <View style={styles.saveBar}>
+          <Text style={styles.saveBarText}>{t('Unsaved changes')}</Text>
+          <Button title={t('Save')} icon="✓" onPress={saveAll} style={{ flex: 1 }} />
+        </View>
+      )}
       <ExercisePicker visible={pickerDay != null} onClose={() => setPickerDay(null)} onPick={onPick} />
     </View>
   );
@@ -221,28 +221,28 @@ function DayCard({
   onDelete,
   onAddExercise,
   onRemoveExercise,
-  onSavePlan,
-  registerFlush,
+  draftSets,
+  onChangeSets,
   onMove,
   onStart,
 }: {
   day: DayWithExercises;
   index: number;
   isNext: boolean;
+  /** The typed name (saved with the screen's Save button). */
   onRename: (name: string) => void;
   onDelete: () => void;
   onAddExercise: () => void;
   onRemoveExercise: (id: string) => void;
-  onSavePlan: (id: string, sets: PlannedSet[]) => Promise<unknown>;
-  registerFlush: (flushNow: () => Promise<unknown>) => () => void;
+  /** Planned sets edited but not saved yet, by day-exercise id. */
+  draftSets: Record<string, PlannedSet[]>;
+  onChangeSets: (id: string, sets: PlannedSet[]) => void;
   onMove: (index: number, dir: -1 | 1) => void;
   onStart: () => void;
 }) {
   const [name, setName] = useState(day.name);
-  const save = () => {
-    if (name.trim() && name.trim() !== day.name) onRename(name);
-  };
-  const totalSets = day.exercises.reduce((a, e) => a + plannedSetsOf(e).length, 0);
+  const setsOf = (e: DayWithExercises['exercises'][number]) => draftSets[e.id] ?? plannedSetsOf(e);
+  const totalSets = day.exercises.reduce((a, e) => a + setsOf(e).length, 0);
 
   return (
     <View style={[styles.day, isNext && { borderColor: alpha(theme.accent, 0.4) }]}>
@@ -253,9 +253,10 @@ function DayCard({
         <TextInput
           style={styles.dayName}
           value={name}
-          onChangeText={setName}
-          onBlur={save}
-          onSubmitEditing={save}
+          onChangeText={(v) => {
+            setName(v);
+            onRename(v);
+          }}
           returnKeyType="done"
         />
         <Pressable onPress={onDelete} hitSlop={8} style={styles.iconBtn}>
@@ -287,10 +288,10 @@ function DayCard({
                 {e.name}
               </Text>
               {/* Seen without reading the sets: e.g. "Note: this exercise includes a drop set". */}
-              <TechniqueNote ids={e.technique_ids} sets={plannedSetsOf(e)} />
+              <TechniqueNote ids={e.technique_ids} sets={setsOf(e)} />
             </View>
           </Pressable>
-          <Text style={styles.setCount}>{plural(plannedSetsOf(e).length, '1 set', '{n} sets')}</Text>
+          <Text style={styles.setCount}>{plural(setsOf(e).length, '1 set', '{n} sets')}</Text>
           <Pressable
             hitSlop={8}
             onPress={() => onRemoveExercise(e.id)}
@@ -301,9 +302,8 @@ function DayCard({
           </Pressable>
         </View>
         <PlanSetsEditor
-          initial={plannedSetsOf(e)}
-          onSave={(sets) => onSavePlan(e.id, sets)}
-          registerFlush={registerFlush}
+          initial={setsOf(e)}
+          onChange={(sets) => onChangeSets(e.id, sets)}
         />
         </View>
       ))}
@@ -365,6 +365,18 @@ const styles = StyleSheet.create({
   exLink: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
   setsHint: { color: theme.faint, fontSize: 11, textAlign: 'center', marginTop: 4 },
   dayActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  saveBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 18,
+    backgroundColor: theme.card,
+    borderTopWidth: 1,
+    borderTopColor: theme.border,
+  },
+  saveBarText: { color: theme.gold, fontWeight: '800', fontSize: 13 },
   addDay: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   addDayInput: {
     flex: 1,

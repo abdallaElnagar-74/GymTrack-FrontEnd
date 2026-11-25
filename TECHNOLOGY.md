@@ -4,7 +4,7 @@ Technical memory for AI assistants and developers: how the mobile app and the ba
 run, tested and shipped, plus the traps already hit. Read this before changing code.
 Product rules and features are in [BUSINESS.md](BUSINESS.md).
 
-_Last updated: 2026-11-25 · app v1.2.6 (versionCode 23)._
+_Last updated: 2026-11-25 · app v1.2.7 (versionCode 24)._
 
 ---
 
@@ -133,7 +133,10 @@ cd android && NODE_ENV=production ./gradlew assembleRelease   # ~7-10 min
   (ticked + `drop` if any drop set) in the plan editor, workout list and training screen (`videos` → ▶ buttons).
   A set's video = `setVideo()` (built-in technique link, else the old `set.link`). Helpers in `src/utils/techniques.ts`.
   `PlanSetsEditor` has no link field. Backup keeps `technique_ids` (account settings aren't in backups).
-- `PlanSetsEditor` keeps typed text in local state, saves after 700 ms, and registers a flush that runs before **Start**.
+- No autosave on typed edits (v1.2.7): `PlanSetsEditor` reports changes via `onChange`; the plan screen keeps drafts
+  (`dayNames`, `draftSets`) and saves them together with the **Save** bar (or before **Start**). The exercise screen and
+  `TechniquesEditor` work the same way. `useUnsavedGuard(dirty)` (`src/hooks`, wraps `usePreventRemove` from
+  `expo-router`) asks "Discard changes?" when leaving with unsaved edits.
 - Starting a plan day (Workout tab or plan editor) pushes `/train/<first exercise id>`; tapping an exercise card in the
   workout list opens `/train/<id>` too (exercise history is linked from there). The training screen uses the same
   debounced-edit / `inFlight` pattern as the workout list and flushes before navigating.

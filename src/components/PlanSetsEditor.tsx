@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { PlannedSet, SetKind } from '../db/queries';
@@ -20,52 +20,24 @@ const toRows = (sets: PlannedSet[]): Row[] => sets.map((s) => ({ kind: s.kind ??
 const toSets = (rows: Row[]): PlannedSet[] =>
   rows.map((r) => ({ kind: r.kind, reps: 0, weight_kg: 0, ...(r.note.trim() ? { note: r.note.trim() } : {}) }));
 
-/** A save waiting for the typing to stop. */
-type Pending = { timer: ReturnType<typeof setTimeout> | null; run: (() => Promise<unknown>) | null };
-
-function flush(p: Pending) {
-  if (p.timer) clearTimeout(p.timer);
-  p.timer = null;
-  const run = p.run;
-  p.run = null;
-  return run ? run() : Promise.resolve();
-}
-
 /**
  * The planned sets of one exercise in a plan day: how many sets, the type of each (working /
  * warm-up / drop) and an optional note. Weight and reps are entered in the training screen.
- * Saves on its own shortly after a change; `registerFlush` lets the screen save right away
- * (e.g. before starting the day).
+ * Nothing is saved here: every change goes to `onChange`, and the screen's Save button saves it.
  */
 export function PlanSetsEditor({
   initial,
-  onSave,
-  registerFlush,
+  onChange,
 }: {
   initial: PlannedSet[];
-  onSave: (sets: PlannedSet[]) => Promise<unknown>;
-  registerFlush: (flushNow: () => Promise<unknown>) => () => void;
+  onChange: (sets: PlannedSet[]) => void;
 }) {
   const [rows, setRows] = useState(() => toRows(initial));
-  const pending = useRef<Pending>({ timer: null, run: null });
   const labels = setLabels(rows);
-
-  // Save anything still waiting when the screen asks, or when this editor goes away.
-  useEffect(() => {
-    const p = pending.current;
-    const unregister = registerFlush(() => flush(p));
-    return () => {
-      unregister();
-      flush(p);
-    };
-  }, [registerFlush]);
 
   const update = (next: Row[]) => {
     setRows(next);
-    const p = pending.current;
-    if (p.timer) clearTimeout(p.timer);
-    p.run = () => onSave(toSets(next));
-    p.timer = setTimeout(() => flush(p), 700);
+    onChange(toSets(next));
   };
 
   const change = (i: number, patch: Partial<Row>) => update(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));

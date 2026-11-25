@@ -394,4 +394,12 @@ export const ar: Record<string, string> = {
   'a drop set': 'مجموعة دروب سيت',
   'Note: this exercise includes {names}': 'ملحوظة: يحتوي هذا التمرين على {names}',
   'Techniques: {names}': 'تكنيكات: {names}',
+  'Unsaved changes': 'تغييرات مش محفوظة',
+  'Discard changes?': 'تلغي التغييرات؟',
+  'You have changes that aren’t saved. Leave without saving?': 'عندك تغييرات مش محفوظة. تخرج من غير حفظ؟',
+  'Keep editing': 'كمّل تعديل',
+  'Name is required': 'الاسم مطلوب',
+  'Give the plan and each day a name.': 'اكتب اسم للخطة ولكل يوم.',
+  'Give the exercise a name.': 'اكتب اسم للتمرين.',
+  'Give each technique a name.': 'اكتب اسم لكل تكنيك.',
 };
