@@ -4,7 +4,7 @@ Product memory for AI assistants and developers: what the app is for, what it do
 feature, and what was decided. Keep these rules when changing features. Technical details are in
 [TECHNOLOGY.md](TECHNOLOGY.md).
 
-_Last updated: 2026-11-25 · current release v1.2.4._
+_Last updated: 2026-11-25 · current release v1.2.5._
 
 ---
 
@@ -67,16 +67,16 @@ under your account, so it survives a lost phone and is the same on every device.
   to the workout list to tap *Finish workout*. The rest timer keeps running across these screens.
 - **Set notes & tips** (since v1.2.0): on a warm-up or drop set the card shows a **short** label only — "Warm-up set
   only" / "Drop set" (no long explanations; decided with the user) — plus the set's note from the plan ("📝 drop 20%").
-- **Drop-set video link** (since v1.2.3): in the plan, a drop set has an optional **YouTube link** field (only YouTube
-  links are accepted; a wrong link shows "That isn't a YouTube link." and isn't saved). While training, that set shows
-  **▶ Watch how on YouTube**, which opens the link **outside the app** (YouTube app or browser), not inside GymTrack.
 - **Drop-set warning** (since v1.2.4): an exercise with drop sets shows a purple **⚠ Drop set** / **⚠ 2 drop sets**
   tag on its row in the plan editor and in the workout list, and each day on the Plans tab adds a line
   "⚠ Drop sets: <exercise names>", so you see it without opening the sets.
-- **Technique videos per exercise** (since v1.2.4): on the exercise screen, *Technique videos* holds one YouTube link
-  per technique (Warm-up, Drop set). Every set of that type of that exercise, **in any plan**, shows *▶ Watch how on
-  YouTube* with it, so the link doesn't have to be added to each set. A link on the planned set itself wins.
-  Saved when the field is left; an empty field removes it; non-YouTube links aren't saved. The rest screen's "Up next" line includes the type and note too, and the
+- **Technique videos** (since v1.2.5; decided with the user: **not in the plan**): the **Exercises tab** has a
+  *Technique videos* section (folded; shows Warm-up ✓/—, Drop set ✓/—) with one YouTube link per technique, saved to
+  the account. While training, every set of that type, in every exercise, shows **▶ Watch how on YouTube**, which
+  opens the link **outside the app** (YouTube app or browser). An exercise can have its own video for a technique
+  (exercise screen → *Technique videos*), which wins over the general one. Saved when the field is left; empty removes
+  it; only YouTube links are saved. The plan editor has **no** YouTube field (the v1.2.3 per-set link was removed;
+  old links are dropped the next time that exercise's sets are edited). The rest screen's "Up next" line includes the type and note too, and the
   workout list marks sets with a note with 📝. Rest time is the same for every set type.
 - Under the set card: **your last 3 sessions** of this exercise (fewer if you've done it fewer times, hidden if never),
   newest first — date, top weight, and every set as weight (kg) and reps.
@@ -162,6 +162,7 @@ Top to bottom: **Language** (English / العربية), **Appearance** (Auto / D
 | 1.2.2 | 2026-11-24 | Typing "12" in weight/reps no longer turns into "2" (Android); exercises and sets are added only in the plan (no Add set / Add exercise / empty workout during training) |
 | 1.2.3 | 2026-11-24 | Finish saves at once when every set is done (no confirm); with sets left it says to finish them or discard; YouTube link on drop sets (opens in YouTube); short warm-up / drop-set labels |
 | 1.2.4 | 2026-11-25 | Technique videos per exercise (warm-up / drop-set YouTube link used in every plan); ⚠ drop-set tag on exercises in plans and the workout list |
+| 1.2.5 | 2026-11-25 | Technique videos moved to the Exercises tab (one YouTube link for warm-up / drop sets, for every exercise); no YouTube field in the plan |
 
 APKs are built locally (`E:\GymApp\GymTrack-<version>.apk`) and installed by sideloading over the previous version.
 Not on Google Play yet.

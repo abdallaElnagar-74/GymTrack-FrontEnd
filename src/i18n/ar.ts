@@ -376,9 +376,11 @@ export const ar: Record<string, string> = {
   'Video (optional)': 'فيديو (اختياري)',
   'Video selected': 'تم اختيار فيديو',
   'Technique videos': 'فيديوهات التكنيك',
-  'Used for these sets in every plan, so you don’t add the link to each set.':
-    'بيظهر لكل مجموعة من النوع ده في كل الخطط، فمش محتاج تضيف الرابط لكل مجموعة.',
   'Saved ✓': 'تم الحفظ ✓',
+  'Add a YouTube video once: every set of that type, in every exercise, shows it while training.':
+    'ضيف فيديو يوتيوب مرة واحدة: كل مجموعة من النوع ده في كل التمارين هتعرضه أثناء التمرين.',
+  'Only for this exercise. Leave empty to use the general video from the Exercises tab.':
+    'لهذا التمرين بس. سيبه فاضي علشان يستخدم الفيديو العام من تبويب التمارين.',
   '{n} drop sets': '{n} دروب سِت',
   'Drop sets: {names}': 'دروب سِت: {names}',
   'YouTube video for {type}': 'فيديو يوتيوب لـ {type}',

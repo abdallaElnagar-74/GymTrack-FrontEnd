@@ -67,7 +67,7 @@ const flushEdits = (api: Api, pending: PendingEdits) =>
 export default function TrainExercise() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const api = useApi();
-  const { unit, setUnit, restSeconds } = useUnit();
+  const { unit, setUnit, restSeconds, techniqueLinks } = useUnit();
   const rest = useRest();
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [groups, setGroups] = useState<WorkoutExercise[]>([]);
@@ -301,7 +301,7 @@ export default function TrainExercise() {
           <SetCard
             key={current.id}
             set={current}
-            link={current.link || exercise.technique_links?.[current.kind] || ''}
+            link={exercise.technique_links?.[current.kind] || techniqueLinks[current.kind] || current.link || ''}
             label={labels[ci]}
             number={ci + 1}
             total={sets.length}
@@ -426,7 +426,7 @@ function SetCard({
   onNext,
 }: {
   set: WorkoutSet;
-  /** The set's own YouTube link from the plan, else the exercise's video for this set type. */
+  /** Video for this set type: the exercise's own, else the general one (Exercises tab). */
   link: string;
   label: string;
   number: number;

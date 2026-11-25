@@ -12,8 +12,50 @@ import { addExercise, addExerciseVideo, getExercises, type Exercise } from '@/sr
 import { canStoreVideoFiles, saveVideoFile } from '@/src/utils/videoFiles';
 import { parseYouTube } from '@/src/utils/youtube';
 import { MUSCLE_GROUPS } from '@/src/db/seed';
+import { TechniqueLinks } from '@/src/components/TechniqueLinks';
+import { useUnit } from '@/src/UnitContext';
+import { kindInfo, SET_KINDS } from '@/src/utils/setKind';
 import { alpha, groupColor, theme } from '@/src/theme';
 import { plural, t } from '@/src/i18n';
+
+/**
+ * General technique videos (warm-up, drop set…): one YouTube link each, for every exercise. While
+ * training, a set of that type shows "Watch how on YouTube" with it. Folded by default.
+ */
+function TechniquesSection() {
+  const { techniqueLinks, setTechniqueLink } = useUnit();
+  const [open, setOpen] = useState(false);
+  const kinds = SET_KINDS.filter((k) => k.kind !== 'normal');
+  const count = kinds.filter((k) => techniqueLinks[k.kind]).length;
+  return (
+    <View style={styles.tech}>
+      <Pressable
+        onPress={() => setOpen((o) => !o)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        style={({ pressed }) => [styles.techHead, pressed && { opacity: 0.75 }]}>
+        <Text style={styles.techIcon}>▶</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.techTitle}>{t('Technique videos')}</Text>
+          <Text style={styles.techSub}>
+            {kinds.map((k) => `${k.label} ${techniqueLinks[k.kind] ? '✓' : '—'}`).join('  ·  ')}
+          </Text>
+        </View>
+        <Text style={styles.techCount}>
+          {count}/{kinds.length}
+        </Text>
+        <Text style={styles.techChev}>{open ? '▲' : '▼'}</Text>
+      </Pressable>
+      {open && (
+        <TechniqueLinks
+          links={techniqueLinks}
+          onSave={setTechniqueLink}
+          sub={t('Add a YouTube video once: every set of that type, in every exercise, shows it while training.')}
+        />
+      )}
+    </View>
+  );
+}
 
 export default function ExercisesScreen() {
   const api = useApi();
@@ -151,6 +193,7 @@ export default function ExercisesScreen() {
                 <Button title={t('Save exercise')} onPress={onAdd} disabled={!name.trim()} />
               </View>
             )}
+            <TechniquesSection />
             <View style={styles.searchBox}>
               <Text style={styles.searchIcon}>⌕</Text>
               <TextInput
@@ -200,6 +243,22 @@ export default function ExercisesScreen() {
 }
 
 const styles = StyleSheet.create({
+  tech: { marginTop: 12, gap: 10 },
+  techHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: theme.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: theme.border,
+    padding: 14,
+  },
+  techIcon: { color: kindInfo('drop').color, fontSize: 18, fontWeight: '900' },
+  techTitle: { color: theme.text, fontSize: 16, fontWeight: '800' },
+  techSub: { color: theme.muted, fontSize: 12, marginTop: 2 },
+  techCount: { color: theme.accent, fontWeight: '800', fontSize: 13 },
+  techChev: { color: theme.faint, fontSize: 11 },
   addBtn: {
     width: 44,
     height: 44,

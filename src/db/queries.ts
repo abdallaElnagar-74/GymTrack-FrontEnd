@@ -235,14 +235,22 @@ export function getExerciseHistory(api: Api, exerciseId: string) {
 
 // ---------- Settings ----------
 
-export type Settings = { unit: Unit; rest_seconds: number };
+/** A YouTube link per set type ('' or missing = none). */
+export type TechniqueLinks = Partial<Record<SetKind, string>>;
+
+export type Settings = {
+  unit: Unit;
+  rest_seconds: number;
+  /** General technique videos (e.g. how to do a drop set), shown on every set of that type. */
+  technique_links: TechniqueLinks;
+};
 
 export async function getSettings(api: Api): Promise<Settings> {
   const s = await api.get<Partial<Settings>>('/settings');
-  return { unit: s.unit === 'lb' ? 'lb' : 'kg', rest_seconds: s.rest_seconds ?? 60 };
+  return { unit: s.unit === 'lb' ? 'lb' : 'kg', rest_seconds: s.rest_seconds ?? 60, technique_links: s.technique_links ?? {} };
 }
 
-/** Saves only the fields given. */
+/** Saves only the fields given (technique_links: only the set types given). */
 export function saveSettings(api: Api, patch: Partial<Settings>) {
   return api.put('/settings', patch);
 }

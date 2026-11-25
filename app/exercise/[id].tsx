@@ -150,7 +150,11 @@ export default function ExerciseDetail() {
       </View>
 
       <SectionTitle>{t('Technique videos')}</SectionTitle>
-      <TechniqueLinks links={exercise.technique_links ?? {}} onSave={onSaveTechnique} />
+      <TechniqueLinks
+        links={exercise.technique_links ?? {}}
+        onSave={onSaveTechnique}
+        sub={t('Only for this exercise. Leave empty to use the general video from the Exercises tab.')}
+      />
 
       <SectionTitle>{t('Personal records 🏆')}</SectionTitle>
       <View style={styles.recRow}>

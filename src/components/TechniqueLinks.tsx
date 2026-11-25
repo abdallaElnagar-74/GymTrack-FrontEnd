@@ -18,14 +18,17 @@ const TECHNIQUES = SET_KINDS.filter((k) => k.kind !== 'normal');
  */
 export function TechniqueLinks({
   links,
+  sub,
   onSave,
 }: {
   links: Partial<Record<SetKind, string>>;
+  /** Line under the title explaining where these videos are used. */
+  sub: string;
   onSave: (kind: SetKind, link: string) => Promise<void>;
 }) {
   return (
     <View style={styles.card}>
-      <Text style={styles.sub}>{t('Used for these sets in every plan, so you don’t add the link to each set.')}</Text>
+      <Text style={styles.sub}>{sub}</Text>
       {TECHNIQUES.map((k) => (
         <Row key={k.kind} kind={k.kind} label={k.label} color={k.color} saved={links[k.kind] ?? ''} onSave={onSave} />
       ))}
@@ -47,6 +50,12 @@ function Row({
   onSave: (kind: SetKind, link: string) => Promise<void>;
 }) {
   const [text, setText] = useState(saved);
+  // Links that arrive after the screen opened (settings still loading) fill the box.
+  const [seen, setSeen] = useState(saved);
+  if (saved !== seen) {
+    setSeen(saved);
+    setText(saved);
+  }
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const bad = text.trim() !== '' && !parseYouTube(text);
