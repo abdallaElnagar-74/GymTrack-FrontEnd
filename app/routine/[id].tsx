@@ -7,7 +7,8 @@ import { ApiError } from '@/src/api/http';
 import { ExercisePicker } from '@/src/components/ExercisePicker';
 import { TechniqueNote } from '@/src/components/TechniqueNote';
 import { PlanSetsEditor } from '@/src/components/PlanSetsEditor';
-import { Button, DetailState, GroupDot } from '@/src/components/ui';
+import { Arrow, Button, DetailState, GroupDot } from '@/src/components/ui';
+import { kindInfo, setLabels } from '@/src/utils/setKind';
 import {
   addDay,
   addDayExercise,
@@ -241,6 +242,16 @@ function DayCard({
   onStart: () => void;
 }) {
   const [name, setName] = useState(day.name);
+  // Folded by default (only the next day starts open); each exercise's sets open with a tap.
+  const [open, setOpen] = useState(isNext);
+  const [openEx, setOpenEx] = useState<Set<string>>(() => new Set());
+  const toggleEx = (id: string) =>
+    setOpenEx((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   const setsOf = (e: DayWithExercises['exercises'][number]) => draftSets[e.id] ?? plannedSetsOf(e);
   const totalSets = day.exercises.reduce((a, e) => a + setsOf(e).length, 0);
 
@@ -262,13 +273,28 @@ function DayCard({
         <Pressable onPress={onDelete} hitSlop={8} style={styles.iconBtn}>
           <Text style={{ color: theme.danger, fontWeight: '800' }}>🗑</Text>
         </Pressable>
+        <Pressable
+          onPress={() => setOpen((o) => !o)}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+          accessibilityLabel={open ? t('Close {name}', { name: day.name }) : t('Open {name}', { name: day.name })}
+          style={styles.iconBtn}>
+          <Text style={styles.chev}>{open ? '▲' : '▼'}</Text>
+        </Pressable>
       </View>
-      <Text style={styles.dayMeta}>
-        {plural(day.exercises.length, '1 exercise', '{n} exercises')} · {plural(totalSets, '1 set', '{n} sets')}
-        {isNext ? `  ·  ${t('NEXT UP')}` : ''}
-      </Text>
+      <Pressable onPress={() => setOpen((o) => !o)}>
+        <Text style={styles.dayMeta}>
+          {plural(day.exercises.length, '1 exercise', '{n} exercises')} · {plural(totalSets, '1 set', '{n} sets')}
+          {isNext ? `  ·  ${t('NEXT UP')}` : ''}
+        </Text>
+      </Pressable>
 
-      {day.exercises.map((e, i) => (
+      {open && day.exercises.map((e, i) => {
+        const exOpen = openEx.has(e.id);
+        const sets = setsOf(e);
+        const labels = setLabels(sets);
+        return (
         <View key={e.id} style={styles.exBlock}>
         <View style={styles.exRow}>
           <View style={styles.order}>
@@ -279,19 +305,36 @@ function DayCard({
               <Text style={[styles.arrow, i === day.exercises.length - 1 && { opacity: 0.2 }]}>▼</Text>
             </Pressable>
           </View>
+          {/* Tap to open / close this exercise's sets. */}
           <Pressable
             style={styles.exLink}
-            onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: String(e.exercise_id) } })}>
+            onPress={() => toggleEx(e.id)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: exOpen }}>
             <GroupDot group={e.muscle_group} />
-            <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+            <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
               <Text style={styles.exName} numberOfLines={1}>
                 {e.name}
               </Text>
               {/* Seen without reading the sets: e.g. "Note: this exercise includes a drop set". */}
-              <TechniqueNote ids={e.technique_ids} sets={setsOf(e)} />
+              <TechniqueNote ids={e.technique_ids} sets={sets} />
+              {!exOpen && (
+                // Folded: the sets at a glance (W W 1 2 3 D).
+                <View style={styles.miniChips}>
+                  {sets.map((s, j) => {
+                    const info = kindInfo(s.kind);
+                    const special = s.kind !== 'normal';
+                    return (
+                      <View key={j} style={[styles.miniChip, special && { backgroundColor: alpha(info.color, 0.15) }]}>
+                        <Text style={[styles.miniChipText, special && { color: info.color }]}>{labels[j]}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
             </View>
+            <Text style={styles.chev}>{exOpen ? '▲' : '▼'}</Text>
           </Pressable>
-          <Text style={styles.setCount}>{plural(setsOf(e).length, '1 set', '{n} sets')}</Text>
           <Pressable
             hitSlop={8}
             onPress={() => onRemoveExercise(e.id)}
@@ -301,13 +344,24 @@ function DayCard({
             <Text style={{ color: theme.faint, fontWeight: '800' }}>✕</Text>
           </Pressable>
         </View>
-        <PlanSetsEditor
-          initial={setsOf(e)}
-          onChange={(sets) => onChangeSets(e.id, sets)}
-        />
+        {exOpen && (
+          <>
+            {/* Unsaved edits live in draftSets, so closing this keeps them. */}
+            <PlanSetsEditor initial={sets} onChange={(next) => onChangeSets(e.id, next)} />
+            <Pressable
+              onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: String(e.exercise_id) } })}
+              style={styles.exDetails}>
+              <Text style={styles.exDetailsText}>{t('Exercise details & techniques')}</Text>
+              <Arrow style={styles.exDetailsArrow} />
+            </Pressable>
+          </>
+        )}
         </View>
-      ))}
-      {day.exercises.length > 0 && <Text style={styles.setsHint}>{t('Weight and reps are entered in each set during the workout.')}</Text>}
+        );
+      })}
+      {open && day.exercises.length > 0 && (
+        <Text style={styles.setsHint}>{t('Weight and reps are entered in each set during the workout.')}</Text>
+      )}
 
       <View style={styles.dayActions}>
         <Button title={t('Add exercise')} icon="+" variant="secondary" onPress={onAddExercise} style={{ flex: 1 }} />
@@ -358,11 +412,25 @@ const styles = StyleSheet.create({
   },
   exBlock: { paddingVertical: 8, borderTopWidth: 1, borderTopColor: theme.border },
   exRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  setCount: { color: theme.muted, fontSize: 12, fontWeight: '700' },
   order: { width: 18, alignItems: 'center' },
   arrow: { color: theme.muted, fontSize: 10, lineHeight: 14 },
   exName: { flex: 1, minWidth: 0, color: theme.text, fontSize: 15, fontWeight: '600' },
   exLink: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  chev: { color: theme.faint, fontSize: 11 },
+  miniChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  miniChip: {
+    minWidth: 24,
+    height: 22,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+    backgroundColor: theme.cardAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  miniChipText: { color: theme.muted, fontSize: 11, fontWeight: '800' },
+  exDetails: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8, marginLeft: 26, paddingVertical: 4 },
+  exDetailsText: { color: theme.accent, fontWeight: '700', fontSize: 13 },
+  exDetailsArrow: { color: theme.accent, fontSize: 13 },
   setsHint: { color: theme.faint, fontSize: 11, textAlign: 'center', marginTop: 4 },
   dayActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   saveBar: {

@@ -4,7 +4,7 @@ Product memory for AI assistants and developers: what the app is for, what it do
 feature, and what was decided. Keep these rules when changing features. Technical details are in
 [TECHNOLOGY.md](TECHNOLOGY.md).
 
-_Last updated: 2026-11-25 · current release v1.2.9._
+_Last updated: 2026-11-25 · current release v1.3.0._
 
 ---
 
@@ -94,6 +94,10 @@ under your account, so it survives a lost phone and is the same on every device.
 
 ### Plans
 - A plan = named list of **days** (e.g. Push / Pull / Legs); each day = ordered list of exercises.
+- **Plan editor is folded (since v1.3.0, decided with the user):** each day card opens / closes with ▼ / ▲ (only the
+  next day starts open); each exercise is closed by default and shows its name, technique note and small set chips
+  (W W 1 2 3 D). Tap it to open its sets; inside there is a link to *Exercise details & techniques*. Closing keeps
+  unsaved edits (they wait for Save).
 - **Sets are planned in advance** (since v1.2.0: number of sets only — no weight or reps in the plan): for each
   exercise in a day, a list of sets, each with a **type** (working / warm-up / drop; tap the set to change it) and an
   optional **note** (e.g. "drop 20%", max 120 characters). Up to 20 sets per exercise.
@@ -178,6 +182,7 @@ Top to bottom: **Language** (English / العربية), **Appearance** (Auto / D
 | 1.2.7 | 2026-11-25 | Save button everywhere you type (plan editor, exercise screen, techniques); "Discard changes?" when leaving unsaved edits |
 | 1.2.8 | 2026-11-25 | Exercises tab: search on top, cleaner Techniques card (hidden while searching); no "Techniques" line on the Plans tab |
 | 1.2.9 | 2026-11-25 | Training screen: history of the current set only (date · weight × reps per past session) instead of all sets together |
+| 1.3.0 | 2026-11-25 | Plan editor folds: day cards open / close (next day open), exercises closed by default with set chips; tap to edit their sets |
 
 APKs are built locally (`E:\GymApp\GymTrack-<version>.apk`) and installed by sideloading over the previous version.
 Not on Google Play yet.
