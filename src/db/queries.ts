@@ -13,11 +13,8 @@ export type Exercise = {
   name: string;
   muscle_group: string;
   created_at: number;
-  /**
-   * Technique videos: a YouTube link per set type (e.g. how to do this exercise's drop set).
-   * Used for every set of that type in any plan, unless the planned set has its own link.
-   */
-  technique_links?: Partial<Record<SetKind, string>>;
+  /** Ids of the account's techniques (Exercises tab) this exercise uses; shown as a note on it. */
+  technique_ids?: string[];
 };
 
 export type Workout = {
@@ -102,9 +99,9 @@ export function updateExercise(api: Api, id: string, name: string, muscleGroup: 
   return api.patch(`/exercises/${id}`, { name: name.trim(), muscle_group: muscleGroup });
 }
 
-/** Saves the exercise's YouTube video for one set type ('' removes it). Throws 400 if it isn't a YouTube link. */
-export function setTechniqueLink(api: Api, id: string, kind: SetKind, link: string) {
-  return api.put(`/exercises/${id}/technique-links`, { kind, link: link.trim() });
+/** Which techniques (ids from the account's list) this exercise uses. */
+export function setExerciseTechniques(api: Api, id: string, ids: string[]) {
+  return api.put(`/exercises/${id}/techniques`, { ids });
 }
 
 /** Also deletes its logged sets, plan entries and videos. */
@@ -235,24 +232,31 @@ export function getExerciseHistory(api: Api, exerciseId: string) {
 
 // ---------- Settings ----------
 
-/** A YouTube link per set type ('' or missing = none). */
-export type TechniqueLinks = Partial<Record<SetKind, string>>;
+/**
+ * A training technique of the account (Exercises tab) with an optional YouTube video.
+ * Built-ins "warmup" and "drop" always exist (name '' = shown translated); the user adds more.
+ */
+export type Technique = { id: string; name: string; link: string };
 
 export type Settings = {
   unit: Unit;
   rest_seconds: number;
-  /** General technique videos (e.g. how to do a drop set), shown on every set of that type. */
-  technique_links: TechniqueLinks;
+  techniques: Technique[];
 };
 
 export async function getSettings(api: Api): Promise<Settings> {
   const s = await api.get<Partial<Settings>>('/settings');
-  return { unit: s.unit === 'lb' ? 'lb' : 'kg', rest_seconds: s.rest_seconds ?? 60, technique_links: s.technique_links ?? {} };
+  return { unit: s.unit === 'lb' ? 'lb' : 'kg', rest_seconds: s.rest_seconds ?? 60, techniques: s.techniques ?? [] };
 }
 
-/** Saves only the fields given (technique_links: only the set types given). */
-export function saveSettings(api: Api, patch: Partial<Settings>) {
+/** Saves only the fields given. */
+export function saveSettings(api: Api, patch: Partial<Pick<Settings, 'unit' | 'rest_seconds'>>) {
   return api.put('/settings', patch);
+}
+
+/** Replaces the account's technique list (built-ins are always kept). */
+export function saveTechniques(api: Api, techniques: Technique[]) {
+  return api.put('/settings/techniques', { techniques });
 }
 
 // ---------- Plans (routines -> days -> exercises) ----------
@@ -273,6 +277,8 @@ export type DayExercise = {
   sets?: PlannedSet[] | null;
   name: string;
   muscle_group: string;
+  /** The exercise's techniques (ids from the account's list). */
+  technique_ids?: string[];
 };
 export type DayWithExercises = RoutineDay & { exercises: DayExercise[] };
 export type RoutineFull = Routine & { days: DayWithExercises[]; nextDayId: string | null; lastDone: number | null };

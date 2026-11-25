@@ -375,13 +375,23 @@ export const ar: Record<string, string> = {
   'Weight and reps are entered in each set during the workout.': 'الوزن والعدّات بتتكتب في كل مجموعة أثناء التمرين.',
   'Video (optional)': 'فيديو (اختياري)',
   'Video selected': 'تم اختيار فيديو',
-  'Technique videos': 'فيديوهات التكنيك',
   'Saved ✓': 'تم الحفظ ✓',
-  'Add a YouTube video once: every set of that type, in every exercise, shows it while training.':
-    'ضيف فيديو يوتيوب مرة واحدة: كل مجموعة من النوع ده في كل التمارين هتعرضه أثناء التمرين.',
-  'Only for this exercise. Leave empty to use the general video from the Exercises tab.':
-    'لهذا التمرين بس. سيبه فاضي علشان يستخدم الفيديو العام من تبويب التمارين.',
-  '{n} drop sets': '{n} دروب سِت',
-  'Drop sets: {names}': 'دروب سِت: {names}',
   'YouTube video for {type}': 'فيديو يوتيوب لـ {type}',
+  Techniques: 'التكنيكات',
+  '1 video': 'فيديو واحد',
+  '{n} videos': '{n} فيديو',
+  'Add your techniques with a YouTube video. Tick them on an exercise to show the note on it.':
+    'ضيف التكنيكات بتاعتك مع فيديو يوتيوب. علّم عليها جوه التمرين علشان الملحوظة تظهر عليه.',
+  'Technique name (e.g. Rest-pause)': 'اسم التكنيك (مثال: ريست بوز)',
+  'Technique name': 'اسم التكنيك',
+  technique: 'تكنيك',
+  'Delete {name}': 'حذف {name}',
+  '+ Add technique': '+ إضافة تكنيك',
+  'Tick the techniques this exercise uses. Add new ones in the Exercises tab.':
+    'علّم على التكنيكات اللي في التمرين ده. تقدر تضيف تكنيكات جديدة من تبويب التمارين.',
+  'Watch {name} on YouTube': 'شوف {name} على يوتيوب',
+  'a warm-up set': 'مجموعة إحماء',
+  'a drop set': 'مجموعة دروب سيت',
+  'Note: this exercise includes {names}': 'ملحوظة: يحتوي هذا التمرين على {names}',
+  'Techniques: {names}': 'تكنيكات: {names}',
 };

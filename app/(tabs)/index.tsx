@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useApi } from '@/src/api/SessionContext';
 
-import { DropSetBadge } from '@/src/components/DropSetBadge';
+import { TechniqueNote } from '@/src/components/TechniqueNote';
 import { RestTimer } from '@/src/components/RestTimer';
 import { rest as restTimer, useRest } from '@/src/hooks/useRest';
 import { Arrow, Button, LoadError, Loading, ScreenHeader, StatTile } from '@/src/components/ui';
@@ -418,7 +418,7 @@ function ExerciseRow({
           <Text style={[styles.exMeta, complete && { color: theme.success, fontWeight: '800' }]}>
             {complete ? `✓ ${t('Done')}` : t('{done}/{total} sets done', { done, total: sets.length })} · {t(exercise.muscle_group)}
           </Text>
-          <DropSetBadge sets={sets} style={{ marginTop: 5 }} />
+          <TechniqueNote ids={exercise.technique_ids} sets={sets} style={{ marginTop: 5 }} />
         </View>
         <Arrow style={styles.chev} />
       </View>

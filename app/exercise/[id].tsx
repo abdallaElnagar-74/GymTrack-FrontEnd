@@ -1,12 +1,12 @@
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { confirm, notify } from '@/src/utils/confirm';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useApi } from '@/src/api/SessionContext';
 import { LineChart } from 'react-native-gifted-charts';
 
 import { ExerciseVideos } from '@/src/components/ExerciseVideos';
-import { TechniqueLinks } from '@/src/components/TechniqueLinks';
+import { TechniqueNote } from '@/src/components/TechniqueNote';
 import { Button, Pill, SectionTitle, StatTile, DetailState } from '@/src/components/ui';
 import {
   addExerciseVideo,
@@ -16,20 +16,21 @@ import {
   getExerciseVideos,
   getExerciseHistory,
   getPersonalRecords,
-  setTechniqueLink,
+  setExerciseTechniques,
   updateExercise,
   type Exercise,
-  type SetKind,
   type ExerciseSession,
   type ExerciseVideo,
   type VideoSource,
   type PersonalRecords,
 } from '@/src/db/queries';
-import { groupColor, theme } from '@/src/theme';
+import { alpha, groupColor, theme } from '@/src/theme';
 import { useUnit } from '@/src/UnitContext';
 import { formatShortDate, toDisplay } from '@/src/utils/format';
 import { kindInfo, setLabels } from '@/src/utils/setKind';
 import { deleteVideoFile } from '@/src/utils/videoFiles';
+import { reportError } from '@/src/utils/feedback';
+import { techniqueName } from '@/src/utils/techniques';
 import { isRTL, t } from '@/src/i18n';
 
 // Heaviest set of a session, ignoring warm-ups (falls back to all sets if only warm-ups were logged).
@@ -41,7 +42,7 @@ function topWeight(sets: { kind: string; weight_kg: number }[]) {
 export default function ExerciseDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const api = useApi();
-  const { unit } = useUnit();
+  const { unit, techniques } = useUnit();
   const { width } = useWindowDimensions();
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [missing, setMissing] = useState(false);
@@ -93,9 +94,16 @@ export default function ExerciseDetail() {
     }
   };
 
-  const onSaveTechnique = async (kind: SetKind, link: string) => {
-    await setTechniqueLink(api, id, kind, link);
-    setExercise((ex) => ex && { ...ex, technique_links: { ...ex.technique_links, [kind]: link } });
+  // Shown at once, saved in the background (put back if saving fails).
+  const onToggleTechnique = (techniqueId: string) => {
+    if (!exercise) return;
+    const before = exercise.technique_ids ?? [];
+    const ids = before.includes(techniqueId) ? before.filter((x) => x !== techniqueId) : [...before, techniqueId];
+    setExercise({ ...exercise, technique_ids: ids });
+    setExerciseTechniques(api, id, ids).catch((e) => {
+      setExercise((ex) => ex && { ...ex, technique_ids: before });
+      reportError(e);
+    });
   };
 
   const onDelete = () => {
@@ -149,12 +157,33 @@ export default function ExerciseDetail() {
         </View>
       </View>
 
-      <SectionTitle>{t('Technique videos')}</SectionTitle>
-      <TechniqueLinks
-        links={exercise.technique_links ?? {}}
-        onSave={onSaveTechnique}
-        sub={t('Only for this exercise. Leave empty to use the general video from the Exercises tab.')}
-      />
+      <SectionTitle>{t('Techniques')}</SectionTitle>
+      <View style={styles.techCard}>
+        <Text style={styles.muted}>{t('Tick the techniques this exercise uses. Add new ones in the Exercises tab.')}</Text>
+        <View style={styles.techChips}>
+          {/* Warm-up is a set type, not a note on the exercise, so it isn't offered here. */}
+          {techniques
+            .filter((tq) => tq.id !== 'warmup')
+            .map((tq) => {
+              const on = (exercise.technique_ids ?? []).includes(tq.id);
+              return (
+                <Pressable
+                  key={tq.id}
+                  onPress={() => onToggleTechnique(tq.id)}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: on }}
+                  style={({ pressed }) => [styles.techChip, on && styles.techChipOn, pressed && { opacity: 0.75 }]}>
+                  <Text style={[styles.techChipText, on && { color: theme.gold }]}>
+                    {on ? '✓ ' : ''}
+                    {techniqueName(tq)}
+                    {tq.link ? ' ▶' : ''}
+                  </Text>
+                </Pressable>
+              );
+            })}
+        </View>
+        <TechniqueNote ids={exercise.technique_ids} videos />
+      </View>
 
       <SectionTitle>{t('Personal records 🏆')}</SectionTitle>
       <View style={styles.recRow}>
@@ -283,4 +312,16 @@ const styles = StyleSheet.create({
   histUnit: { color: theme.muted, fontSize: 12, fontWeight: '600' },
   empty: { backgroundColor: theme.card, borderRadius: 16, padding: 16 },
   muted: { color: theme.muted, lineHeight: 20 },
+  techCard: { backgroundColor: theme.card, borderRadius: 16, padding: 14, gap: 12, borderWidth: 1, borderColor: theme.border },
+  techChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  techChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: theme.cardAlt,
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  techChipOn: { backgroundColor: alpha(theme.gold, 0.15), borderColor: alpha(theme.gold, 0.6) },
+  techChipText: { color: theme.text, fontWeight: '700', fontSize: 14 },
 });

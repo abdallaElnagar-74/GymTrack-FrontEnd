@@ -34,6 +34,8 @@ import { cleanNumber, parseNumber } from '@/src/utils/number';
 import { parseYouTube } from '@/src/utils/youtube';
 import { kindInfo, kindOrdinals, setLabels } from '@/src/utils/setKind';
 import { deleteVideoFile } from '@/src/utils/videoFiles';
+import { setVideo } from '@/src/utils/techniques';
+import { TechniqueNote } from '@/src/components/TechniqueNote';
 import { isRTL, plural, t } from '@/src/i18n';
 
 const NEXT_KIND: Record<SetKind, SetKind> = { normal: 'warmup', warmup: 'drop', drop: 'normal' };
@@ -67,7 +69,7 @@ const flushEdits = (api: Api, pending: PendingEdits) =>
 export default function TrainExercise() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const api = useApi();
-  const { unit, setUnit, restSeconds, techniqueLinks } = useUnit();
+  const { unit, setUnit, restSeconds, techniques } = useUnit();
   const rest = useRest();
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [groups, setGroups] = useState<WorkoutExercise[]>([]);
@@ -269,6 +271,8 @@ export default function TrainExercise() {
             {t('{done}/{total} sets done', { done: doneCount, total: sets.length })}
           </Text>
         </View>
+        {/* "Note: this exercise includes a drop set", with ▶ to watch each technique's video. */}
+        <TechniqueNote ids={exercise.technique_ids} sets={sets} videos style={{ marginTop: 12 }} />
 
         {/* Every set of this exercise: tap one to work on it. */}
         <View style={styles.chips}>
@@ -301,7 +305,7 @@ export default function TrainExercise() {
           <SetCard
             key={current.id}
             set={current}
-            link={exercise.technique_links?.[current.kind] || techniqueLinks[current.kind] || current.link || ''}
+            link={setVideo(techniques, current.kind, current.link)}
             label={labels[ci]}
             number={ci + 1}
             total={sets.length}
@@ -426,7 +430,7 @@ function SetCard({
   onNext,
 }: {
   set: WorkoutSet;
-  /** Video for this set type: the exercise's own, else the general one (Exercises tab). */
+  /** Video for this set type (warm-up / drop set technique in the Exercises tab). */
   link: string;
   label: string;
   number: number;

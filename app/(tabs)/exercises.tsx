@@ -12,21 +12,20 @@ import { addExercise, addExerciseVideo, getExercises, type Exercise } from '@/sr
 import { canStoreVideoFiles, saveVideoFile } from '@/src/utils/videoFiles';
 import { parseYouTube } from '@/src/utils/youtube';
 import { MUSCLE_GROUPS } from '@/src/db/seed';
-import { TechniqueLinks } from '@/src/components/TechniqueLinks';
+import { TechniquesEditor } from '@/src/components/TechniquesEditor';
 import { useUnit } from '@/src/UnitContext';
-import { kindInfo, SET_KINDS } from '@/src/utils/setKind';
+import { techniqueName } from '@/src/utils/techniques';
 import { alpha, groupColor, theme } from '@/src/theme';
 import { plural, t } from '@/src/i18n';
 
 /**
- * General technique videos (warm-up, drop set…): one YouTube link each, for every exercise. While
- * training, a set of that type shows "Watch how on YouTube" with it. Folded by default.
+ * The account's training techniques (warm-up, drop set and your own), each with a YouTube video.
+ * Exercises tick which ones they use (exercise screen). Folded by default.
  */
 function TechniquesSection() {
-  const { techniqueLinks, setTechniqueLink } = useUnit();
+  const { techniques } = useUnit();
   const [open, setOpen] = useState(false);
-  const kinds = SET_KINDS.filter((k) => k.kind !== 'normal');
-  const count = kinds.filter((k) => techniqueLinks[k.kind]).length;
+  const count = techniques.filter((tq) => tq.link).length;
   return (
     <View style={styles.tech}>
       <Pressable
@@ -36,23 +35,15 @@ function TechniquesSection() {
         style={({ pressed }) => [styles.techHead, pressed && { opacity: 0.75 }]}>
         <Text style={styles.techIcon}>▶</Text>
         <View style={{ flex: 1 }}>
-          <Text style={styles.techTitle}>{t('Technique videos')}</Text>
-          <Text style={styles.techSub}>
-            {kinds.map((k) => `${k.label} ${techniqueLinks[k.kind] ? '✓' : '—'}`).join('  ·  ')}
+          <Text style={styles.techTitle}>{t('Techniques')}</Text>
+          <Text style={styles.techSub} numberOfLines={2}>
+            {techniques.map((tq) => `${techniqueName(tq)}${tq.link ? ' ▶' : ''}`).join('  ·  ')}
           </Text>
         </View>
-        <Text style={styles.techCount}>
-          {count}/{kinds.length}
-        </Text>
+        <Text style={styles.techCount}>{plural(count, '1 video', '{n} videos')}</Text>
         <Text style={styles.techChev}>{open ? '▲' : '▼'}</Text>
       </Pressable>
-      {open && (
-        <TechniqueLinks
-          links={techniqueLinks}
-          onSave={setTechniqueLink}
-          sub={t('Add a YouTube video once: every set of that type, in every exercise, shows it while training.')}
-        />
-      )}
+      {open && <TechniquesEditor />}
     </View>
   );
 }
@@ -254,7 +245,7 @@ const styles = StyleSheet.create({
     borderColor: theme.border,
     padding: 14,
   },
-  techIcon: { color: kindInfo('drop').color, fontSize: 18, fontWeight: '900' },
+  techIcon: { color: theme.gold, fontSize: 18, fontWeight: '900' },
   techTitle: { color: theme.text, fontSize: 16, fontWeight: '800' },
   techSub: { color: theme.muted, fontSize: 12, marginTop: 2 },
   techCount: { color: theme.accent, fontWeight: '800', fontSize: 13 },

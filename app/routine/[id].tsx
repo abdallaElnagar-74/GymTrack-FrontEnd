@@ -5,7 +5,7 @@ import { useApi } from '@/src/api/SessionContext';
 import { ApiError } from '@/src/api/http';
 
 import { ExercisePicker } from '@/src/components/ExercisePicker';
-import { DropSetBadge } from '@/src/components/DropSetBadge';
+import { TechniqueNote } from '@/src/components/TechniqueNote';
 import { PlanSetsEditor } from '@/src/components/PlanSetsEditor';
 import { Button, DetailState, GroupDot } from '@/src/components/ui';
 import {
@@ -286,8 +286,8 @@ function DayCard({
               <Text style={styles.exName} numberOfLines={1}>
                 {e.name}
               </Text>
-              {/* Seen without reading the sets: this exercise has drop sets. */}
-              <DropSetBadge sets={plannedSetsOf(e)} />
+              {/* Seen without reading the sets: e.g. "Note: this exercise includes a drop set". */}
+              <TechniqueNote ids={e.technique_ids} sets={plannedSetsOf(e)} />
             </View>
           </Pressable>
           <Text style={styles.setCount}>{plural(plannedSetsOf(e).length, '1 set', '{n} sets')}</Text>

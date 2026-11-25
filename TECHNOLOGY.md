@@ -4,7 +4,7 @@ Technical memory for AI assistants and developers: how the mobile app and the ba
 run, tested and shipped, plus the traps already hit. Read this before changing code.
 Product rules and features are in [BUSINESS.md](BUSINESS.md).
 
-_Last updated: 2026-11-25 · app v1.2.5 (versionCode 22)._
+_Last updated: 2026-11-25 · app v1.2.6 (versionCode 23)._
 
 ---
 
@@ -126,12 +126,13 @@ cd android && NODE_ENV=production ./gradlew assembleRelease   # ~7-10 min
 - Training screen (`train/[id].tsx`): set edits are debounced (500 ms) and flushed before navigating; tick/kind changes
   are tracked in `inFlight`; it loads the active workout (`?context=`note`, `link` (from the plan, '' if none), `done: 0|1`), videos and `/exercises/:id/history`
   (first 3 = "Last 3 sessions") in parallel.
-- Technique videos: general ones live in account settings (`settings.technique_links`, via `useUnit()` →
-  `techniqueLinks` / `setTechniqueLink`), edited in the Exercises tab; per-exercise overrides in
-  `exercises.technique_links`, edited on the exercise screen. Both use `TechniqueLinks` (saves on blur). The training
-  screen shows `exercise.technique_links[kind] || settings.technique_links[kind] || set.link` (resolved at display
-  time, so changes reach a workout in progress). `PlanSetsEditor` no longer has a link field and saves sets without
-  `link`. Backup keeps per-exercise links (account settings aren't in backups).
+- Techniques: the account's list is `settings.techniques` (`useUnit()` → `techniques` / `setTechniques`, saved with
+  `PUT /settings/techniques`), edited by `TechniquesEditor` in the Exercises tab. Built-ins `warmup` / `drop` always
+  exist (name '' → translated by `techniqueName`). Exercises tick techniques in `exercises.technique_ids` (exercise
+  screen). `TechniqueNote` shows "Note: this exercise includes …" from `exerciseTechniques(techniques, ids, sets)`
+  (ticked + `drop` if any drop set) in the plan editor, workout list and training screen (`videos` → ▶ buttons).
+  A set's video = `setVideo()` (built-in technique link, else the old `set.link`). Helpers in `src/utils/techniques.ts`.
+  `PlanSetsEditor` has no link field. Backup keeps `technique_ids` (account settings aren't in backups).
 - `PlanSetsEditor` keeps typed text in local state, saves after 700 ms, and registers a flush that runs before **Start**.
 - Starting a plan day (Workout tab or plan editor) pushes `/train/<first exercise id>`; tapping an exercise card in the
   workout list opens `/train/<id>` too (exercise history is linked from there). The training screen uses the same
@@ -209,8 +210,8 @@ ignored by the data API), `version`. Unique index `{user_id, id}`.
 
 | Collection | Fields |
 |---|---|
-| `users` | `_id` (UUID), `email` (lower-case, unique), `password_hash`, `created_at`, `settings: { unit: 'kg'\|'lb', rest_seconds, technique_links? }` |
-| `exercises` | `name` (unique per user, case-insensitive), `muscle_group`, `created_at`, `technique_links?: { warmup?, drop?, normal? }` (YouTube per set type; '' = none) |
+| `users` | `_id` (UUID), `email` (lower-case, unique), `password_hash`, `created_at`, `settings: { unit: 'kg'\|'lb', rest_seconds, techniques?: [{ id, name, link }], technique_links? }` (technique_links = v1.2.5 format, kept in sync for the built-ins) |
+| `exercises` | `name` (unique per user, case-insensitive), `muscle_group`, `created_at`, `technique_ids?: string[]` (techniques it uses), `technique_links?` (v1.2.4, no longer used) |
 | `exercise_videos` | `exercise_id`, `source: 'youtube'\|'file'`, `url`, `title`, `position` (file videos stay on the phone) |
 | `routines` (plans) | `name`, `created_at` |
 | `routine_days` | `routine_id`, `name`, `position` |
@@ -223,13 +224,13 @@ Weights are stored in **kg**; the app converts for lb display. Warm-ups are excl
 ### API (all `/api/*` need `Authorization: Bearer <token>`)
 - `GET /health` → `{ ok: true }` (pings MongoDB)
 - `/auth`: `POST register | login | guest | upgrade | merge`, `GET me`, `DELETE me` (deletes account + all data). Rate limit 30 / 15 min per IP.
-- Exercises: `GET/POST /exercises`, `GET/PATCH/DELETE /exercises/:id`, `PUT /exercises/:id/technique-links` (`{ kind, link }`), `GET /exercises/:id/records|history|last-session?exclude=`,
+- Exercises: `GET/POST /exercises`, `GET/PATCH/DELETE /exercises/:id`, `PUT /exercises/:id/techniques` (`{ ids }`), `PUT /exercises/:id/technique-links` (v1.2.4, unused), `GET /exercises/:id/records|history|last-session?exclude=`,
   `GET/POST /exercises/:id/videos`, `PATCH/DELETE /videos/:id`
 - Workouts: `GET /workouts/active|summaries`, `GET /stats/dashboard?tz=<minutes>`, `POST /workouts`, `POST /workouts/from-day`,
   `GET/PATCH/DELETE /workouts/:id`, `GET /workouts/:id/exercises[?context=1]`, `GET /workouts/:id/undone-count`,
   `POST /workouts/:id/finish` (drops unticked sets, renumbers; `saved:false` if nothing ticked), `POST /workouts/:id/sets`,
   `DELETE /workouts/:id/exercises/:exerciseId`, `PATCH/DELETE /sets/:id`
-- Settings: `GET /settings` → `{ unit, rest_seconds, technique_links }` (default 60, {}), `PUT /settings` (partial; `technique_links` merges per type)
+- Settings: `GET /settings` → `{ unit, rest_seconds, techniques, technique_links }` (default 60), `PUT /settings` (partial), `PUT /settings/techniques` (`{ techniques }`, whole list; built-ins kept)
 - Plans: `GET/POST /routines`, `POST /routines/from-template` (returns existing plan with the same name),
   `GET/PATCH/DELETE /routines/:id`, `POST /routines/:id/days`, `PATCH/DELETE /days/:id`,
   `POST /days/:id/exercises` (plan starts from last session's sets), `PUT /days/:id/order`,

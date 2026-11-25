@@ -1,18 +1,18 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useApi } from '@/src/api/SessionContext';
-import { getSettings, saveSettings, type SetKind, type TechniqueLinks } from './db/queries';
+import { getSettings, saveSettings, saveTechniques, type Technique } from './db/queries';
 import type { Unit } from './utils/format';
 
-/** Account settings (stored on the server): weight unit, rest-timer length, general technique videos. */
+/** Account settings (stored on the server): weight unit, rest-timer length, training techniques. */
 type Ctx = {
   unit: Unit;
   setUnit: (u: Unit) => Promise<void>;
   /** Rest timer after a ticked set, in seconds; 0 = off. */
   restSeconds: number;
   setRestSeconds: (s: number) => Promise<void>;
-  /** YouTube video per set type (warm-up, drop set…), shown on every set of that type while training. */
-  techniqueLinks: TechniqueLinks;
-  setTechniqueLink: (kind: SetKind, link: string) => Promise<void>;
+  /** Techniques (warm-up, drop set, the user's own…) with their YouTube videos (Exercises tab). */
+  techniques: Technique[];
+  setTechniques: (list: Technique[]) => Promise<void>;
 };
 
 const UnitContext = createContext<Ctx>({
@@ -20,22 +20,22 @@ const UnitContext = createContext<Ctx>({
   setUnit: async () => {},
   restSeconds: 60,
   setRestSeconds: async () => {},
-  techniqueLinks: {},
-  setTechniqueLink: async () => {},
+  techniques: [],
+  setTechniques: async () => {},
 });
 
 export function UnitProvider({ children }: { children: ReactNode }) {
   const api = useApi();
   const [unit, setUnitState] = useState<Unit>('kg');
   const [restSeconds, setRestState] = useState(60);
-  const [techniqueLinks, setLinks] = useState<TechniqueLinks>({});
+  const [techniques, setTechniquesState] = useState<Technique[]>([]);
 
   useEffect(() => {
     getSettings(api)
       .then((s) => {
         setUnitState(s.unit);
         setRestState(s.rest_seconds);
-        setLinks(s.technique_links);
+        setTechniquesState(s.techniques);
       })
       .catch(() => {});
   }, [api]);
@@ -57,18 +57,17 @@ export function UnitProvider({ children }: { children: ReactNode }) {
     [api]
   );
 
-  // Saved first (the server checks it's a YouTube link), then shown.
-  const setTechniqueLink = useCallback(
-    async (kind: SetKind, link: string) => {
-      const v = link.trim();
-      await saveSettings(api, { technique_links: { [kind]: v } });
-      setLinks((prev) => ({ ...prev, [kind]: v }));
+  // Saved first (the server checks names and YouTube links), then shown everywhere.
+  const setTechniques = useCallback(
+    async (list: Technique[]) => {
+      await saveTechniques(api, list);
+      setTechniquesState(list);
     },
     [api]
   );
 
   return (
-    <UnitContext.Provider value={{ unit, setUnit, restSeconds, setRestSeconds, techniqueLinks, setTechniqueLink }}>
+    <UnitContext.Provider value={{ unit, setUnit, restSeconds, setRestSeconds, techniques, setTechniques }}>
       {children}
     </UnitContext.Provider>
   );
