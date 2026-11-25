@@ -6,6 +6,7 @@ import { useApi } from '@/src/api/SessionContext';
 import { LineChart } from 'react-native-gifted-charts';
 
 import { ExerciseVideos } from '@/src/components/ExerciseVideos';
+import { TechniqueLinks } from '@/src/components/TechniqueLinks';
 import { Button, Pill, SectionTitle, StatTile, DetailState } from '@/src/components/ui';
 import {
   addExerciseVideo,
@@ -15,8 +16,10 @@ import {
   getExerciseVideos,
   getExerciseHistory,
   getPersonalRecords,
+  setTechniqueLink,
   updateExercise,
   type Exercise,
+  type SetKind,
   type ExerciseSession,
   type ExerciseVideo,
   type VideoSource,
@@ -90,6 +93,11 @@ export default function ExerciseDetail() {
     }
   };
 
+  const onSaveTechnique = async (kind: SetKind, link: string) => {
+    await setTechniqueLink(api, id, kind, link);
+    setExercise((ex) => ex && { ...ex, technique_links: { ...ex.technique_links, [kind]: link } });
+  };
+
   const onDelete = () => {
     if (!exercise) return;
     confirm(
@@ -140,6 +148,9 @@ export default function ExerciseDetail() {
           <Pill text={t(exercise.muscle_group)} color={color} />
         </View>
       </View>
+
+      <SectionTitle>{t('Technique videos')}</SectionTitle>
+      <TechniqueLinks links={exercise.technique_links ?? {}} onSave={onSaveTechnique} />
 
       <SectionTitle>{t('Personal records 🏆')}</SectionTitle>
       <View style={styles.recRow}>

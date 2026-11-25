@@ -375,4 +375,11 @@ export const ar: Record<string, string> = {
   'Weight and reps are entered in each set during the workout.': 'الوزن والعدّات بتتكتب في كل مجموعة أثناء التمرين.',
   'Video (optional)': 'فيديو (اختياري)',
   'Video selected': 'تم اختيار فيديو',
+  'Technique videos': 'فيديوهات التكنيك',
+  'Used for these sets in every plan, so you don’t add the link to each set.':
+    'بيظهر لكل مجموعة من النوع ده في كل الخطط، فمش محتاج تضيف الرابط لكل مجموعة.',
+  'Saved ✓': 'تم الحفظ ✓',
+  '{n} drop sets': '{n} دروب سِت',
+  'Drop sets: {names}': 'دروب سِت: {names}',
+  'YouTube video for {type}': 'فيديو يوتيوب لـ {type}',
 };

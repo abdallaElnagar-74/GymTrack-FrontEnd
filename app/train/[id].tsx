@@ -301,6 +301,7 @@ export default function TrainExercise() {
           <SetCard
             key={current.id}
             set={current}
+            link={current.link || exercise.technique_links?.[current.kind] || ''}
             label={labels[ci]}
             number={ci + 1}
             total={sets.length}
@@ -409,6 +410,7 @@ function RecentSessions({ sessions, unit }: { sessions: ExerciseSession[]; unit:
 /** The set being worked on: type, last time, weight × reps boxes, Done (or Edit for a finished set). */
 function SetCard({
   set,
+  link,
   label,
   number,
   total,
@@ -424,6 +426,8 @@ function SetCard({
   onNext,
 }: {
   set: WorkoutSet;
+  /** The set's own YouTube link from the plan, else the exercise's video for this set type. */
+  link: string;
   label: string;
   number: number;
   total: number;
@@ -507,10 +511,10 @@ function SetCard({
             <Text style={[styles.tipText, { color: info.color }]}>{t('Drop set')}</Text>
           ) : null}
           {set.note ? <Text style={styles.tipNote}>📝 {set.note}</Text> : null}
-          {set.link ? (
+          {link ? (
             // Opens in the YouTube app / browser, not inside GymTrack.
             <Pressable
-              onPress={() => openLink(set.link!)}
+              onPress={() => openLink(link)}
               accessibilityRole="link"
               style={({ pressed }) => [styles.ytBtn, pressed && { opacity: 0.7 }]}>
               <Text style={styles.ytText}>▶ {t('Watch how on YouTube')}</Text>

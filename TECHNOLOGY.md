@@ -4,7 +4,7 @@ Technical memory for AI assistants and developers: how the mobile app and the ba
 run, tested and shipped, plus the traps already hit. Read this before changing code.
 Product rules and features are in [BUSINESS.md](BUSINESS.md).
 
-_Last updated: 2026-11-24 · app v1.2.3 (versionCode 20)._
+_Last updated: 2026-11-25 · app v1.2.4 (versionCode 21)._
 
 ---
 
@@ -126,6 +126,9 @@ cd android && NODE_ENV=production ./gradlew assembleRelease   # ~7-10 min
 - Training screen (`train/[id].tsx`): set edits are debounced (500 ms) and flushed before navigating; tick/kind changes
   are tracked in `inFlight`; it loads the active workout (`?context=`note`, `link` (from the plan, '' if none), `done: 0|1`), videos and `/exercises/:id/history`
   (first 3 = "Last 3 sessions") in parallel.
+- Technique videos: `TechniqueLinks` on the exercise screen saves per-kind links on blur. The training screen shows
+  `set.link || exercise.technique_links[set.kind]` (resolved at display time, so a change also reaches a workout in
+  progress and a set whose type is changed while training). Backup export/import keeps `technique_links`.
 - `PlanSetsEditor` keeps typed text in local state, saves after 700 ms, and registers a flush that runs before **Start**.
 - Starting a plan day (Workout tab or plan editor) pushes `/train/<first exercise id>`; tapping an exercise card in the
   workout list opens `/train/<id>` too (exercise history is linked from there). The training screen uses the same
@@ -204,7 +207,7 @@ ignored by the data API), `version`. Unique index `{user_id, id}`.
 | Collection | Fields |
 |---|---|
 | `users` | `_id` (UUID), `email` (lower-case, unique), `password_hash`, `created_at`, `settings: { unit: 'kg'\|'lb', rest_seconds }` |
-| `exercises` | `name` (unique per user, case-insensitive), `muscle_group`, `created_at` |
+| `exercises` | `name` (unique per user, case-insensitive), `muscle_group`, `created_at`, `technique_links?: { warmup?, drop?, normal? }` (YouTube per set type; '' = none) |
 | `exercise_videos` | `exercise_id`, `source: 'youtube'\|'file'`, `url`, `title`, `position` (file videos stay on the phone) |
 | `routines` (plans) | `name`, `created_at` |
 | `routine_days` | `routine_id`, `name`, `position` |
@@ -217,7 +220,7 @@ Weights are stored in **kg**; the app converts for lb display. Warm-ups are excl
 ### API (all `/api/*` need `Authorization: Bearer <token>`)
 - `GET /health` → `{ ok: true }` (pings MongoDB)
 - `/auth`: `POST register | login | guest | upgrade | merge`, `GET me`, `DELETE me` (deletes account + all data). Rate limit 30 / 15 min per IP.
-- Exercises: `GET/POST /exercises`, `GET/PATCH/DELETE /exercises/:id`, `GET /exercises/:id/records|history|last-session?exclude=`,
+- Exercises: `GET/POST /exercises`, `GET/PATCH/DELETE /exercises/:id`, `PUT /exercises/:id/technique-links` (`{ kind, link }`), `GET /exercises/:id/records|history|last-session?exclude=`,
   `GET/POST /exercises/:id/videos`, `PATCH/DELETE /videos/:id`
 - Workouts: `GET /workouts/active|summaries`, `GET /stats/dashboard?tz=<minutes>`, `POST /workouts`, `POST /workouts/from-day`,
   `GET/PATCH/DELETE /workouts/:id`, `GET /workouts/:id/exercises[?context=1]`, `GET /workouts/:id/undone-count`,

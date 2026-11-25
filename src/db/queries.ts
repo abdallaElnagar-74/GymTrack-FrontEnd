@@ -13,6 +13,11 @@ export type Exercise = {
   name: string;
   muscle_group: string;
   created_at: number;
+  /**
+   * Technique videos: a YouTube link per set type (e.g. how to do this exercise's drop set).
+   * Used for every set of that type in any plan, unless the planned set has its own link.
+   */
+  technique_links?: Partial<Record<SetKind, string>>;
 };
 
 export type Workout = {
@@ -95,6 +100,11 @@ export async function addExercise(api: Api, name: string, muscleGroup: string) {
 
 export function updateExercise(api: Api, id: string, name: string, muscleGroup: string) {
   return api.patch(`/exercises/${id}`, { name: name.trim(), muscle_group: muscleGroup });
+}
+
+/** Saves the exercise's YouTube video for one set type ('' removes it). Throws 400 if it isn't a YouTube link. */
+export function setTechniqueLink(api: Api, id: string, kind: SetKind, link: string) {
+  return api.put(`/exercises/${id}/technique-links`, { kind, link: link.trim() });
 }
 
 /** Also deletes its logged sets, plan entries and videos. */

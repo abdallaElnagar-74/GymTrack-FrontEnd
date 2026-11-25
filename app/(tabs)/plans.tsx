@@ -3,12 +3,14 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { router } from 'expo-router';
 import { useApi } from '@/src/api/SessionContext';
 
+import { dropCount } from '@/src/components/DropSetBadge';
 import { Arrow, Button, LoadError, Loading, ScreenHeader, SectionTitle } from '@/src/components/ui';
 import { useScreenData } from '@/src/hooks/useScreenData';
 import {
   createRoutine,
   createRoutineFromTemplate,
   getRoutinesFull,
+  plannedSetsOf,
   type RoutineFull,
 } from '@/src/db/queries';
 import { PLAN_TEMPLATES, type PlanTemplate } from '@/src/db/templates';
@@ -16,6 +18,7 @@ import { alpha, theme } from '@/src/theme';
 import { notify } from '@/src/utils/confirm';
 import { reportError } from '@/src/utils/feedback';
 import { formatShortDate } from '@/src/utils/format';
+import { kindInfo } from '@/src/utils/setKind';
 import { plural, t } from '@/src/i18n';
 
 export default function PlansScreen() {
@@ -133,6 +136,15 @@ export default function PlansScreen() {
                       ? d.exercises.map((e) => e.name).join(', ')
                       : t('No exercises')}
                   </Text>
+                  {/* Which exercises of this day have drop sets, without opening the plan. */}
+                  {(() => {
+                    const withDrops = d.exercises.filter((e) => dropCount(plannedSetsOf(e)) > 0);
+                    return withDrops.length ? (
+                      <Text style={styles.dropLine} numberOfLines={2}>
+                        ⚠ {t('Drop sets: {names}', { names: withDrops.map((e) => e.name).join(', ') })}
+                      </Text>
+                    ) : null;
+                  })()}
                 </View>
               </View>
             ))}
@@ -228,6 +240,7 @@ const styles = StyleSheet.create({
   dayName: { color: theme.text, fontSize: 15, fontWeight: '700' },
   nextTag: { color: theme.accent, fontSize: 11, fontWeight: '800' },
   dayEx: { color: theme.faint, fontSize: 12, marginTop: 2 },
+  dropLine: { color: kindInfo('drop').color, fontSize: 12, fontWeight: '700', marginTop: 3 },
   tpl: {
     flexDirection: 'row',
     alignItems: 'center',

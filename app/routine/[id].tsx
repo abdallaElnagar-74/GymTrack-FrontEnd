@@ -5,6 +5,7 @@ import { useApi } from '@/src/api/SessionContext';
 import { ApiError } from '@/src/api/http';
 
 import { ExercisePicker } from '@/src/components/ExercisePicker';
+import { DropSetBadge } from '@/src/components/DropSetBadge';
 import { PlanSetsEditor } from '@/src/components/PlanSetsEditor';
 import { Button, DetailState, GroupDot } from '@/src/components/ui';
 import {
@@ -281,9 +282,13 @@ function DayCard({
             style={styles.exLink}
             onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: String(e.exercise_id) } })}>
             <GroupDot group={e.muscle_group} />
-            <Text style={styles.exName} numberOfLines={1}>
-              {e.name}
-            </Text>
+            <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+              <Text style={styles.exName} numberOfLines={1}>
+                {e.name}
+              </Text>
+              {/* Seen without reading the sets: this exercise has drop sets. */}
+              <DropSetBadge sets={plannedSetsOf(e)} />
+            </View>
           </Pressable>
           <Text style={styles.setCount}>{plural(plannedSetsOf(e).length, '1 set', '{n} sets')}</Text>
           <Pressable
