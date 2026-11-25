@@ -393,6 +393,7 @@ export const ar: Record<string, string> = {
   'a warm-up set': 'مجموعة إحماء',
   'a drop set': 'مجموعة دروب سيت',
   'Note: this exercise includes {names}': 'ملحوظة: يحتوي هذا التمرين على {names}',
+  'This set in past sessions': 'المجموعة دي في المرات اللي فاتت',
   '1 technique': 'تكنيك واحد',
   '{n} techniques': '{n} تكنيك',
   'Unsaved changes': 'تغييرات مش محفوظة',

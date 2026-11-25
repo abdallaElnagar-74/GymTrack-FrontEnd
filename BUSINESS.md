@@ -4,7 +4,7 @@ Product memory for AI assistants and developers: what the app is for, what it do
 feature, and what was decided. Keep these rules when changing features. Technical details are in
 [TECHNOLOGY.md](TECHNOLOGY.md).
 
-_Last updated: 2026-11-25 · current release v1.2.8._
+_Last updated: 2026-11-25 · current release v1.2.9._
 
 ---
 
@@ -83,8 +83,9 @@ under your account, so it survives a lost phone and is the same on every device.
     YouTube field (old per-set links are dropped the next time that exercise's sets are edited).
 - The rest screen's "Up next" line includes the type and note too, and the
   workout list marks sets with a note with 📝. Rest time is the same for every set type.
-- Under the set card: **your last 3 sessions** of this exercise (fewer if you've done it fewer times, hidden if never),
-  newest first — date, top weight, and every set as weight (kg) and reps.
+- Under the set card (since v1.2.9, decided with the user): **this set in past sessions** — only the set you are on
+  (matched by type and position, like "Last time"), one row per session, newest first, up to 5: **date · weight × reps**.
+  It changes when you move to another set; hidden if that set was never done. (Before: every set of the last 3 sessions.)
 - Also: Previous / Next exercise, All exercises (the list), History & records.
 - **Exercises and sets come only from the plan.** During a workout you cannot add exercises or sets (no "Add exercise",
   no "Add set", no "Start empty workout"); a workout starts only from a plan day, and a day with no exercises can't be
@@ -176,6 +177,7 @@ Top to bottom: **Language** (English / العربية), **Appearance** (Auto / D
 | 1.2.6 | 2026-11-25 | Techniques list in the Exercises tab (Warm-up, Drop set + your own, each with a YouTube video); tick them on an exercise; gold note "Note: this exercise includes a drop set" in plans, workout list and training |
 | 1.2.7 | 2026-11-25 | Save button everywhere you type (plan editor, exercise screen, techniques); "Discard changes?" when leaving unsaved edits |
 | 1.2.8 | 2026-11-25 | Exercises tab: search on top, cleaner Techniques card (hidden while searching); no "Techniques" line on the Plans tab |
+| 1.2.9 | 2026-11-25 | Training screen: history of the current set only (date · weight × reps per past session) instead of all sets together |
 
 APKs are built locally (`E:\GymApp\GymTrack-<version>.apk`) and installed by sideloading over the previous version.
 Not on Google Play yet.

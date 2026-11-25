@@ -4,7 +4,7 @@ Technical memory for AI assistants and developers: how the mobile app and the ba
 run, tested and shipped, plus the traps already hit. Read this before changing code.
 Product rules and features are in [BUSINESS.md](BUSINESS.md).
 
-_Last updated: 2026-11-25 · app v1.2.8 (versionCode 25)._
+_Last updated: 2026-11-25 · app v1.2.9 (versionCode 26)._
 
 ---
 
@@ -125,7 +125,7 @@ cd android && NODE_ENV=production ./gradlew assembleRelease   # ~7-10 min
   no set editing there. `run()` shows an overlay for start/finish/discard; removing an exercise is optimistic.
 - Training screen (`train/[id].tsx`): set edits are debounced (500 ms) and flushed before navigating; tick/kind changes
   are tracked in `inFlight`; it loads the active workout (`?context=`note`, `link` (from the plan, '' if none), `done: 0|1`), videos and `/exercises/:id/history`
-  (first 3 = "Last 3 sessions") in parallel.
+  (first 5 → `SetHistory`: the current set in past sessions, matched with `kindOrdinals`) in parallel.
 - Techniques: the account's list is `settings.techniques` (`useUnit()` → `techniques` / `setTechniques`, saved with
   `PUT /settings/techniques`), edited by `TechniquesEditor` in the Exercises tab. Built-ins `warmup` / `drop` always
   exist (name '' → translated by `techniqueName`). Exercises tick techniques in `exercises.technique_ids` (exercise

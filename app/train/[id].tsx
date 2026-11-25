@@ -74,7 +74,7 @@ export default function TrainExercise() {
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [groups, setGroups] = useState<WorkoutExercise[]>([]);
   const [videos, setVideos] = useState<ExerciseVideo[]>([]);
-  // The last finished sessions of this exercise (newest first), at most 3.
+  // The last finished sessions of this exercise (newest first), at most 5 (history of the current set).
   const [recent, setRecent] = useState<ExerciseSession[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'missing' | 'none'>('loading');
   // The set shown in the big card (null = the first set not done yet).
@@ -90,7 +90,7 @@ export default function TrainExercise() {
     try {
       const [w, v, h] = await Promise.all([getActiveWorkout(api), getExerciseVideos(api, id), getExerciseHistory(api, id)]);
       setVideos(v);
-      setRecent(h.slice(0, 3));
+      setRecent(h.slice(0, 5));
       if (!w) return setStatus('none');
       const g = await getWorkoutExercises(api, w.id, { context: true });
       setWorkout(w);
@@ -325,7 +325,9 @@ export default function TrainExercise() {
         )}
         {/* Sets are added only in the plan editor, not during training. */}
 
-        <RecentSessions sessions={recent} unit={unit} />
+        {current ? (
+          <SetHistory sessions={recent} kind={current.kind ?? 'normal'} ordinal={ords[ci]} label={labels[ci]} unit={unit} />
+        ) : null}
 
         <View style={styles.navRow}>
           <Button
@@ -367,46 +369,57 @@ export default function TrainExercise() {
   );
 }
 
-/** Your last (up to) 3 finished sessions of this exercise, to see your progress while training. */
-function RecentSessions({ sessions, unit }: { sessions: ExerciseSession[]; unit: Unit }) {
-  if (!sessions.length) return null;
+/**
+ * The set being worked on, in your last finished sessions (newest first): one row per session with
+ * its date, weight and reps. A set is matched by type and position among sets of that type
+ * (2nd working set ↔ 2nd working set), like "Last time". Hidden if it was never done.
+ */
+function SetHistory({
+  sessions,
+  kind,
+  ordinal,
+  label,
+  unit,
+}: {
+  sessions: ExerciseSession[];
+  kind: SetKind;
+  ordinal: number;
+  label: string;
+  unit: Unit;
+}) {
+  const rows = sessions
+    .map((s) => {
+      const ords = kindOrdinals(s.sets);
+      const set = s.sets.find((x, j) => (x.kind ?? 'normal') === kind && ords[j] === ordinal);
+      return set ? { date: s.date, workoutId: s.workoutId, set } : null;
+    })
+    .filter((r) => r != null);
+  if (!rows.length) return null;
+  const info = kindInfo(kind);
+  const special = kind !== 'normal';
   return (
     <View style={{ marginTop: 22 }}>
-      <Text style={styles.sectionTitle}>
-        {plural(sessions.length, 'Last session', 'Last {n} sessions')}
-      </Text>
-      {sessions.map((session) => {
-        const labels = setLabels(session.sets);
-        const work = session.sets.filter((x) => x.kind !== 'warmup');
-        const top = Math.max(0, ...(work.length ? work : session.sets).map((x) => x.weight_kg));
-        return (
-          <View key={session.workoutId} style={styles.recentCard}>
-            <View style={styles.recentTop}>
-              <Text style={styles.recentDate}>{formatShortDate(session.date)}</Text>
-              <Text style={styles.recentTopW}>
-                {t('Top {w} {unit}', { w: toDisplay(top, unit), unit })}
-              </Text>
-            </View>
-            {session.sets.map((x, i) => {
-              const info = kindInfo(x.kind);
-              const special = x.kind !== 'normal';
-              return (
-                <View key={x.id} style={styles.recentRow}>
-                  <View style={[styles.recentBadge, special && { backgroundColor: info.color + '26' }]}>
-                    <Text style={[styles.recentBadgeText, special && { color: info.color }]}>{labels[i]}</Text>
-                  </View>
-                  <Text style={styles.recentVal}>
-                    {toDisplay(x.weight_kg, unit)} <Text style={styles.recentUnit}>{unit}</Text>
-                  </Text>
-                  <Text style={styles.recentVal}>
-                    {x.reps} <Text style={styles.recentUnit}>{x.reps === 1 ? t('rep') : t('reps')}</Text>
-                  </Text>
-                </View>
-              );
-            })}
+      <View style={styles.histHead}>
+        <View style={[styles.recentBadge, special && { backgroundColor: info.color + '26' }]}>
+          <Text style={[styles.recentBadgeText, special && { color: info.color }]}>{label}</Text>
+        </View>
+        <Text style={[styles.sectionTitle, { marginBottom: 0, flex: 1 }]}>{t('This set in past sessions')}</Text>
+      </View>
+      <View style={styles.recentCard}>
+        {rows.map((r, i) => (
+          // Each part is its own Text so Arabic never jumbles the numbers and units.
+          <View key={r.workoutId} style={[styles.histRow, i > 0 && styles.histRowLine]}>
+            <Text style={styles.histDate}>{formatShortDate(r.date)}</Text>
+            <Text style={styles.recentVal}>
+              {toDisplay(r.set.weight_kg, unit)} <Text style={styles.recentUnit}>{unit}</Text>
+            </Text>
+            <Text style={styles.histX}>×</Text>
+            <Text style={styles.recentVal}>
+              {r.set.reps} <Text style={styles.recentUnit}>{r.set.reps === 1 ? t('rep') : t('reps')}</Text>
+            </Text>
           </View>
-        );
-      })}
+        ))}
+      </View>
     </View>
   );
 }
@@ -786,10 +799,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.border,
   },
-  recentTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  recentDate: { color: theme.text, fontWeight: '800' },
-  recentTopW: { color: theme.accent, fontWeight: '700', fontSize: 13 },
-  recentRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4, gap: 10 },
   recentBadge: {
     width: 26,
     height: 26,
@@ -801,6 +810,11 @@ const styles = StyleSheet.create({
   recentBadgeText: { color: theme.text, fontWeight: '800', fontSize: 12 },
   recentVal: { flex: 1, color: theme.text, fontSize: 16, fontWeight: '800', textAlign: 'center' },
   recentUnit: { color: theme.muted, fontSize: 12, fontWeight: '600' },
+  histHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+  histRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 8 },
+  histRowLine: { borderTopWidth: 1, borderTopColor: theme.border },
+  histDate: { width: 92, color: theme.muted, fontSize: 14, fontWeight: '700' },
+  histX: { color: theme.faint, fontSize: 14, fontWeight: '700' },
   navRow: { flexDirection: 'row', gap: 10, marginTop: 18 },
   linkRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 18, paddingHorizontal: 4 },
   link: { color: theme.accent, fontWeight: '700', fontSize: 14 },
