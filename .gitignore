@@ -43,6 +43,11 @@ yarn-error.*
 # backend lives in its own repo (GymTrack-Backend)
 /backend/
 
+# new .NET platform API lives in its own repo (GymTrack-Platform-API)
+/platform-api/
+# admin. / app. web portals (React + Vite), own repo (BRD GIT-04)
+/platform-web/
+
 # build artifacts
 *.apk
 *.aab

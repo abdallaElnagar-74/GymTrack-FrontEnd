@@ -6,7 +6,7 @@ import { theme } from '@/src/theme';
 import { notify } from '@/src/utils/confirm';
 import { ApiError, apiRequest, configuredApiUrl, normalizeUrl, resolveApiUrl } from './http';
 import { migrateLegacyData } from './legacy';
-import { clearSession, isDeviceAccount, loadSession, resumeGuest, signInWithEmail, type Session } from './session';
+import { clearSession, isDeviceAccount, latestTokens, loadSession, refreshSession, resumeGuest, signInWithEmail, type Session } from './session';
 import { t } from '@/src/i18n';
 
 /** Client for the backend's data API (`/api/...`). Every call goes to MongoDB through the server. */
@@ -22,6 +22,8 @@ type Status = 'loading' | 'ready' | 'signedOut' | 'error';
 
 type SessionState = {
   api: Api;
+  platformApi: Api;
+  organizationApi: (id: string) => Api;
   email: string;
   apiUrl: string;
   isGuest: boolean;
@@ -73,10 +75,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           await apiRequest(s.apiUrl, '/auth/me', { token: s.token, timeoutMs: 15000 });
         } catch (e) {
           if (!(e instanceof ApiError && e.status === 401)) throw e;
-          // Expired or account deleted. A guest logs back in below; an email account must sign in again.
-          await clearSession();
-          if (!isDeviceAccount(s.email)) setError(t('Your session expired. Please sign in again.'));
-          s = null;
+          // Platform API: the 15-minute access token ran out — renew it with the refresh token.
+          const renewed = await refreshSession(s);
+          if (renewed) s = renewed;
+          else {
+            // Expired or account deleted. A guest logs back in below; an email account must sign in again.
+            await clearSession();
+            if (!isDeviceAccount(s.email)) setError(t('Your session expired. Please sign in again.'));
+            s = null;
+          }
         }
       }
       // An account is required. A guest account made by an earlier version is kept (logged in)
@@ -120,11 +127,30 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setStatus('signedOut');
   }, []);
 
-  const api = useMemo<Api>(() => {
+  const { api, platformApi, organizationApi } = useMemo(() => {
+    const create = (prefix: string, workspaceId?: string): Api => {
+    let scoped: { base: string; token: string; expires: number } | undefined;
+    const send = async <T,>(s: Session, method: string, path: string, body?: unknown) => {
+      if (workspaceId && (!scoped || scoped.base !== s.token || scoped.expires <= Date.now() + 30000)) {
+        const r = await apiRequest<{ accessToken: string; accessTokenExpiresAt: string }>(s.apiUrl, '/auth/workspace-access', { method: 'POST', body: { workspaceId }, token: s.token });
+        scoped = { base: s.token, token: r.accessToken, expires: Date.parse(r.accessTokenExpiresAt) };
+      }
+      return apiRequest<T>(s.apiUrl, `${prefix}${path}`, { method, body, token: scoped?.token ?? s.token });
+    };
+
     const request = async <T,>(method: string, path: string, body?: unknown): Promise<T> => {
       if (!session) throw new ApiError(401, 'Not signed in');
+      const s = latestTokens(session); // refreshed tokens are used without re-rendering the screens
       try {
-        return await apiRequest<T>(session.apiUrl, `/api${path}`, { method, body, token: session.token });
+        try {
+          return await send<T>(s, method, path, body);
+        } catch (e) {
+          if (!(e instanceof ApiError && e.status === 401 && s.refreshToken)) throw e;
+          // Access token expired (platform API, 15 min): renew once and repeat the request.
+          const renewed = await refreshSession(s);
+          if (!renewed) throw e;
+          return await send<T>(renewed, method, path, body);
+        }
       } catch (e) {
         if (e instanceof ApiError) {
           if (e.status === 401) onUnauthorized();
@@ -140,6 +166,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       put: (p, b) => request('PUT', p, b),
       del: (p) => request('DELETE', p),
     };
+    };
+    return { api: create('/api'), platformApi: create(''), organizationApi: (id: string) => create('', id) };
   }, [session, onUnauthorized]);
 
   const signIn = useCallback(
@@ -199,7 +227,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }
 
   const value: SessionState = {
-    api,
+    api, platformApi, organizationApi,
     email: session!.email,
     apiUrl: session!.apiUrl,
     isGuest: isDeviceAccount(session!.email),

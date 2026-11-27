@@ -1,6 +1,6 @@
 import { Image, type ImageStyle, type StyleProp } from 'react-native';
 
-import { mode } from '../theme';
+import { mode, theme } from '../theme';
 
 const LOGO = {
   dark: require('../../assets/images/logo-on-dark.png'),
@@ -12,7 +12,7 @@ export function Logo({ size = 120, style }: { size?: number; style?: StyleProp<I
   return (
     <Image
       source={LOGO[mode]}
-      style={[{ width: size, height: size }, style]}
+      style={[{ width: size, height: size }, mode === 'light' && { tintColor: theme.accent }, style]}
       resizeMode="contain"
       accessibilityLabel="GymTrack"
     />

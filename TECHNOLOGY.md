@@ -27,6 +27,28 @@ Cloudflare Worker "gymtrack-backend"  ──►  one Durable Object "Api" (runs 
   - `E:\GymApp\backend` → `github.com/abdallaElnagar-74/GymTrack-Backend` (API) — ignored by the app repo (`/backend/` in `.gitignore`).
 - Branch `main` in both. Commit/push only when the user asks.
 
+### Platform v2 (BRD 4.1) — in progress
+- **v1.x is frozen** (tag `v1.3.0` in both repos): `main` gets fixes only and keeps shipping against the Worker above.
+- **Branch `v2`** of this repo = the app on the new platform; merge `main` → `v2` regularly; released as 2.0.0
+  (same package id `com.gymtracker.app`).
+- **New backend:** ASP.NET Core (.NET 10) + PostgreSQL, multi-tenant, at `E:\GymApp\platform-api`
+  (own repo GymTrack-Platform-API, git-ignored here). Read its `TECHNOLOGY.md`. Local stack: `docker compose up -d`,
+  API at `http://localhost:5080`, contract at `/openapi/v1.json`.
+- **On `v2` the app already runs on the platform API** (`.env.development` → `http://localhost:5080`): the API serves
+  the same `/api/*` JSON as the Worker (ids, ms timestamps, snake_case), so `src/db/queries.ts` and the screens are
+  unchanged. What changed in the app:
+  - `session.ts`: sign-in accepts `{accessToken, refreshToken}` (platform) as well as `{token}` (Worker); the session
+    stores `refreshToken`. `refreshSession()` renews the 15-minute access token — **one refresh at a time** and never
+    with a spent token (`latestTokens()`), because the API ends the whole session when a refresh token is reused.
+  - `SessionContext.tsx`: on 401 it refreshes once and repeats the request; at start-up it refreshes before giving up.
+  - `http.ts`: platform errors come as ProblemDetails `code` → mapped to the existing (translated) messages.
+  - Not available on the platform API: guest accounts (`/auth/guest|upgrade|merge`) and `/sync/push` (uploading data
+    of pre-1.0 phone databases) — those users come over with the migration tool (BRD section 21).
+- **Web portals:** `E:\GymApp\platform-web` (React + Vite + Ant Design, own repo, git-ignored and excluded from this
+  project's tsconfig/eslint). Today the admin. portal (platform staff); app. portal for gyms/coaches in R1. Dev: `npm run dev` → :5173.
+- Next for the app: generated OpenAPI client, workspace picker (ONB-05), CFG-03 settings, then offline-first sessions.
+  Workout maths must match `platform-api/shared-test-cases/*.json`.
+
 ---
 
 ## 2. Mobile app (`E:\GymApp`)
@@ -83,8 +105,10 @@ src/UnitContext.tsx       account settings: unit + restSeconds (stored on the se
 
 ### Configuration
 - `EXPO_PUBLIC_API_URL` decides the server:
-  - `.env.production` and `.env.development` → the Cloudflare Worker URL above.
-  - For backend work, switch `.env.development` to `http://localhost:4000` (commented line in the file).
+  - `.env.production` → the Cloudflare Worker URL above.
+  - `.env.development`: on `main` the Worker; on `v2` the local platform API `http://localhost:5080` (start it with
+    `cd platform-api && docker compose up -d`). The other addresses are commented lines in the file. A phone on
+    Wi-Fi reaches port 5080 on this PC only if Windows Firewall allows it.
 - Env vars are read when Metro starts: after changing them run `npx expo start --clear`.
 - `app.json`: name "GymTrack" (renamed from "Gym Tracker" in 1.0.5; package id unchanged so updates install over old versions), package `com.gymtracker.app`, dark UI, portrait. Bump `expo.version` and
   `expo.android.versionCode` for every APK so it installs over the previous one.
@@ -100,6 +124,7 @@ npx expo start                 # dev server (Expo Go / dev build); add --clear a
 npx expo start --web           # web build (used for quick UI checks)
 npx tsc --noEmit               # typecheck   — run before declaring work done
 npx expo lint                  # lint        — run before declaring work done
+npm run check:i18n             # translations — run with lint before declaring work done
 ```
 
 ### Building the APK (local, no EAS account used)
@@ -169,6 +194,10 @@ cd android && NODE_ENV=production ./gradlew assembleRelease   # ~7-10 min
   text/icons; secondary buttons use `theme.secondary` + `theme.secondaryBorder`.
 
 ### Gotchas already hit (mobile)
+- Light-mode UI (2026-11-27): `surfaceStyle` in `src/theme.ts` adds a subtle `boxShadow` to shared cards/stat tiles
+  and the sign-in panel; light `faint` is darker for readable captions/placeholders. `Logo` uses `tintColor: theme.accent`
+  in light mode so the in-app mark is green rather than near-black. Original PNGs and native splash/icon assets stay unchanged.
+  Shared mobile/web palette colours remain aligned; these presentation adjustments apply to mobile only.
 - **Metro on this Windows PC sometimes serves a stale bundle** (file changes not picked up). If a change "doesn't show",
   kill the server and restart with `npx expo start --clear`.
 - RN 0.88: `StyleSheet.absoluteFillObject` is gone (write `position:'absolute', top/left/right/bottom: 0`);
@@ -292,3 +321,10 @@ npx wrangler deploy --dry-run --outdir <tmp>   # bundle check without uploading
 - Google Play release needs a real signing key (EAS credentials) and an AAB.
 - Haptics are Android-only via `Vibration`; `expo-haptics` would need a native rebuild.
 - Optional: arm64-only APK (~⅓ the size).
+
+## Mobile organisation management (2026-11-28)
+Settings links to app/organization.tsx (the existing Expo Router root is app/); implementation is src/components/OrganizationScreen.tsx. It supports organisation selection, separate employees/clients, direct add with reserved numbers, invitation creation/acceptance, and client subscriptions. Client accounts get a self-only membership view.
+SessionContext exposes platformApi and organizationApi alongside the existing training api. organizationApi obtains and caches POST /auth/workspace-access tokens tied to the latest login token, refreshing through the existing session mechanism. It does not switch the persisted training workspace. API DTOs are generated into src/api/platform-schema.d.ts from the platform API contract. No native dependencies added.
+
+
+2026-11-28: Platform branch contract includes optional number/location; regenerated mobile schema remains aligned with platform-web and platform-api.

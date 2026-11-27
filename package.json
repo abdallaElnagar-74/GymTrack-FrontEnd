@@ -46,6 +46,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
+    "check:i18n": "node scripts/check-i18n.mjs",
     "check:backend": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-backend.mjs"
   },
   "private": true

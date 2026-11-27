@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useState } from 'react';
 import Constants from 'expo-constants';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -79,6 +80,10 @@ export default function SettingsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
       <ScreenHeader title={t('Settings')} />
+      <Pressable accessibilityRole="button" onPress={() => router.push('/organization')} style={{ padding: 20, backgroundColor: theme.card, borderRadius: 16, margin: 16 }}>
+        <Text style={{ color: theme.accent, fontWeight: '700', fontSize: 17 }}>{t('My organizations')}</Text>
+        <Text style={{ color: theme.muted, marginTop: 6 }}>{t('Employees, clients and memberships')}</Text>
+      </Pressable>
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 0, paddingBottom: 32 }}>
         <SectionTitle>{t('Language')}</SectionTitle>
         <LanguageSegment />

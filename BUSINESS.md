@@ -134,7 +134,9 @@ Top to bottom: **Language** (English / العربية), **Appearance** (Auto / D
   Exercise and plan names are the user's own data and are not translated. kg / lb stay as is.
 - **Light and dark mode.** Default (**Auto**) = the phone's dark/light setting; Dark or Light can be fixed in Settings.
 - Language and appearance are saved **on the phone** (not in the account) and the app restarts to apply them.
-- The **logo changes with the theme** (white/lime on dark, dark/green on light): sign-in screen and Settings.
+- The **logo changes with the theme** (white/lime on dark, brand green on light): sign-in screen and Settings.
+  Light-mode forms use a white panel with tinted inputs; shared cards have subtle depth and small captions have
+  stronger contrast (2026-11-27). The in-app light logo is tinted green; the splash keeps its original two-tone mark.
   The splash screen follows the phone's mode. The home-screen icon stays dark (Android can't switch it).
 - The sign-in screen has quick switches for language and light/dark at the top.
 
@@ -187,7 +189,28 @@ Top to bottom: **Language** (English / العربية), **Appearance** (Auto / D
 APKs are built locally (`E:\GymApp\GymTrack-<version>.apk`) and installed by sideloading over the previous version.
 Not on Google Play yet.
 
-## 7. Ideas not done yet
+## 7. Next: GymTrack platform (BRD 4.1, 2026-11-25)
+- GymTrack becomes a multi-tenant SaaS for individuals, coaches and gyms (releases R0–R4). Scope, decisions and
+  progress: `platform-api/BUSINESS.md`.
+- **v1.x is frozen** (fixes only) until users move to v2.0.0; nothing is lost: every account becomes a personal
+  workspace with all its data and the same password.
+- Rules that change in v2 (decided in BRD 4.1): finishing with undone sets will be allowed with a skip reason
+  ("strict finish" = today's rule, kept as an option for personal workspaces, WK-07); week start becomes a setting
+  (Sat / Sun / Mon, CFG-03).
+
+## 8. Ideas not done yet
 - Rest-timer notification when the app is in the background.
 - Google Play release (real signing key, AAB).
 - Home-screen icon that follows light/dark mode.
+
+## Direct member registration — 2026-11-28
+- Employees and clients are mutually exclusive within an organisation. Web has separate Employees and Clients pages; mobile exposes the same distinction under Settings → My organizations.
+- Add new member saves an organisation record immediately: name, international phone number, optional email, type, role and optional branch. No account or password is created implicitly.
+- The API reserves a unique CL-/EMP- number before submission. The form displays it disabled; reservations expire after two hours. Cancelled forms can leave gaps. The sequence is global, and uniqueness is enforced per organisation.
+- Invitations remain in Invitations. An invitation can target a saved member; explicit acceptance by a signed-in person activates that record without regenerating its number. An untargeted invitation cannot duplicate a pending record with the same email.
+- Only clients have subscriptions. Dates are inclusive in the organisation time zone; states are scheduled/active/expired/cancelled. Overlapping non-cancelled subscriptions are refused. This is subscription tracking, not payment collection or automatic access suspension.
+- Existing mixed-role records are marked unclassified for explicit review; neither list silently treats them as both. The web review action removes conflicting roles, protects owners and assigns the appropriate number.
+- Mobile organisation access uses short-lived scoped tokens without changing the device's personal training workspace. Clients see only their own membership and subscriptions.
+
+
+2026-11-28: Web branch management adds editable branch number and location/address, persisted by the platform API. Numbers are unique per organization.

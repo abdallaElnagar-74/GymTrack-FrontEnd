@@ -40,6 +40,7 @@ export default function RootLayout() {
           <StatusBar style={mode === 'light' ? 'dark' : 'light'} />
           <Stack screenOptions={{ headerStyle: { backgroundColor: theme.bg }, headerTintColor: theme.text, headerShadowVisible: false, headerBackButtonDisplayMode: 'minimal' }}>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="organization" options={{ title: t('My organizations') }} />
             <Stack.Screen name="exercise/[id]" options={{ title: t('Exercise') }} />
             <Stack.Screen name="workout/[id]" options={{ title: t('Workout') }} />
             <Stack.Screen name="routine/[id]" options={{ title: t('Edit plan') }} />

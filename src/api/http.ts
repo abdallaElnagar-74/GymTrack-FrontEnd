@@ -68,6 +68,49 @@ export function normalizeUrl(url: string) {
   return u;
 }
 
+/**
+ * The platform API answers errors with a code (ProblemDetails `code`, BRD I18N-01). These map to the messages
+ * the app already shows (and translates with t()); unknown codes are shown as they are.
+ */
+const CODE_MESSAGES: Record<string, string> = {
+  'member.phone_invalid': 'Enter a phone number with country code.',
+  'member.type_conflict': 'Employees and clients must be separate.',
+  'member.reservation_invalid': 'Reopen the form to generate a new number.',
+  'member.duplicate': 'This person is already registered in this organization.',
+  'member.subscription_overlap': 'These dates overlap another subscription.',
+  'auth.invalid_credentials': 'Wrong email or password',
+  'auth.email_taken': 'An account with this email already exists',
+  'auth.account_inactive': 'This account is suspended.',
+  'auth.unauthorized': 'Not signed in',
+  'auth.session_revoked': 'Your session expired. Please sign in again.',
+  'auth.refresh_reused': 'Your session expired. Please sign in again.',
+  'auth.refresh_expired': 'Your session expired. Please sign in again.',
+  'validation.email_invalid': 'Enter a valid email address',
+  'validation.password_too_short': 'Password must be at least 8 characters',
+  'validation.password_too_long': 'Password is too long',
+  'training.exercise_name_taken': 'An exercise with that name already exists',
+  'validation.name_required': 'Name is required',
+  'validation.youtube_link_required': 'This link is not a valid YouTube video.',
+  'validation.technique_name_required': 'Give each technique a name.',
+  'backup.not_a_backup': 'This file is not a GymTrack backup.',
+  'auth.mfa_required': 'Enter the code from your authenticator app.',
+  'auth.mfa_invalid': 'That code is not right. Check the time on your phone and try again.',
+  'auth.user_not_found': 'This account no longer exists.',
+  'auth.refresh_invalid': 'Your session expired. Please sign in again.',
+  'auth.session_not_found': 'Your session expired. Please sign in again.',
+  'access.denied': 'You are not allowed to do this.',
+  'access.no_workspace': 'This workspace is not available to you.',
+  'access.workspace_not_found': 'This workspace is not available to you.',
+  'training.exercise_not_found': 'This item no longer exists. Pull down to refresh.',
+  'training.video_not_found': 'This item no longer exists. Pull down to refresh.',
+  'training.plan_not_found': 'This item no longer exists. Pull down to refresh.',
+  'training.day_not_found': 'This item no longer exists. Pull down to refresh.',
+  'training.day_exercise_not_found': 'This item no longer exists. Pull down to refresh.',
+  'training.workout_not_found': 'This item no longer exists. Pull down to refresh.',
+  'training.set_not_found': 'This item no longer exists. Pull down to refresh.',
+  'validation.invalid': 'Some of the details are not valid.',
+};
+
 /** JSON request to the backend with a timeout and readable errors. */
 export async function apiRequest<T>(
   baseUrl: string,
@@ -107,7 +150,11 @@ export async function apiRequest<T>(
   if (!res.ok) {
     const fieldErrors = data?.details?.fieldErrors as Record<string, string[]> | undefined;
     const first = fieldErrors && Object.values(fieldErrors).flat()[0];
-    throw new ApiError(res.status, first || data?.error || `Server error (${res.status})`);
+    const coded = typeof data?.code === 'string' ? CODE_MESSAGES[data.code] ?? data.code : undefined;
+    throw new ApiError(
+      res.status,
+      first || data?.error || coded || (res.status === 429 ? 'Too many attempts, try again later' : `Server error (${res.status})`)
+    );
   }
   return data as T;
 }

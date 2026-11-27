@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { isRTL, t } from '../i18n';
-import { alpha, groupColor, theme } from '../theme';
+import { alpha, groupColor, surfaceStyle, theme } from '../theme';
 import { reportError } from '../utils/feedback';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'success' | 'ghost';
@@ -270,6 +270,7 @@ const styles = StyleSheet.create({
   headerSub: { color: theme.muted, fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: isRTL ? 0 : 1 },
   headerTitle: { color: theme.text, fontSize: 32, fontWeight: '800', letterSpacing: isRTL ? 0 : -0.5 },
   card: {
+    ...surfaceStyle,
     backgroundColor: theme.card,
     borderRadius: theme.radius,
     padding: 16,
@@ -277,6 +278,7 @@ const styles = StyleSheet.create({
     borderColor: theme.border,
   },
   stat: {
+    ...surfaceStyle,
     flex: 1,
     backgroundColor: theme.card,
     borderRadius: 16,

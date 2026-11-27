@@ -14,5 +14,5 @@
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
   ],
-  "exclude": ["node_modules", "backend"]
+  "exclude": ["node_modules", "backend", "platform-api", "platform-web"]
 }

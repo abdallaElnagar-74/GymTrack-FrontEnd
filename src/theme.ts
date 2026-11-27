@@ -50,7 +50,7 @@ const light: typeof dark = {
   border: '#dce1ea',
   text: '#0f1218',
   muted: '#5b6273',
-  faint: '#8f96a6',
+  faint: '#687184', // readable placeholders and small captions on light surfaces
   accent: '#4a8700', // deeper lime so text and icons stay readable on white
   accentDark: '#3d7000',
   // Brand neon lime for filled buttons, with dark text (same look as dark mode)
@@ -69,6 +69,11 @@ const light: typeof dark = {
 };
 
 export const theme = mode === 'light' ? light : dark;
+
+/** Small lift for light surfaces; keep the shared mobile/web brand palette intact. */
+export const surfaceStyle = mode === 'light'
+  ? { boxShadow: '0 3px 12px rgba(15, 18, 24, 0.05)' }
+  : {};
 
 /** `hex` colour with opacity `a` (0–1), e.g. alpha(theme.accent, 0.14). */
 export function alpha(hex: string, a: number) {

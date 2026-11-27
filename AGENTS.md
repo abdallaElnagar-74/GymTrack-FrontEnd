@@ -8,6 +8,12 @@ This is an Expo/React Native mobile application. Prioritize mobile-first pattern
 
 Keep both files up to date when you change behaviour, architecture, deployment or release a new version.
 
+- Web portals (`platform-web/`, separate repo): their design is fixed in `platform-web/DESIGN.md` — read it before any
+  visual or wording change there. The mobile app's colours are in `src/theme.ts` and must stay in step with it.
+- Platform plan and status: `platform-api/docs/ROADMAP.md` — continue the plan from there.
+- Platform v2 work happens on branch `v2`; `main` is v1.x fixes only. The new .NET backend is in `platform-api/`
+  (separate repo) with its own `AGENTS.md`.
+
 ## Expo has changed — do not trust your training data
 
 Expo ships breaking changes every SDK release. APIs you remember are likely renamed, moved, or removed. Before writing any code that touches an Expo, EAS, or React Native API:
@@ -24,6 +30,7 @@ Use `bunx` instead of `npx` if the project uses bun (`bun.lock` present).
 npx expo install <package>  # ALWAYS use instead of npm/yarn/pnpm/bun add — resolves SDK-compatible versions
 npx expo start              # start the dev server
 npx expo lint               # lint
+npm run check:i18n          # every t() text has Arabic; no dead, untranslated or badly punctuated entries
 npx tsc --noEmit            # typecheck
 npx expo-doctor             # diagnose dependency and config issues
 npx expo install --fix      # fix incompatible package versions
